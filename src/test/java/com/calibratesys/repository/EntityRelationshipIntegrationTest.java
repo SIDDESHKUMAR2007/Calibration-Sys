@@ -60,8 +60,8 @@ class EntityRelationshipIntegrationTest {
         assertEquals(college.getId(), lab.getCollege().getId());
 
         // 3. Staff members
-        Staff staff1 = new Staff("STF-001", "Alice", "Smith", "alice.smith@engcol.edu", "555-0101", "Lab Superintendent", "Chemical Engineering", StaffStatus.ACTIVE);
-        Staff staff2 = new Staff("STF-002", "Bob", "Jones", "bob.jones@engcol.edu", "555-0102", "Senior Calibration Technician", "Instrumentation", StaffStatus.ACTIVE);
+        Staff staff1 = new Staff("STF-INT-001", "Alice", "Smith", "alice.smith.int@engcol.edu", "555-0101", "Lab Superintendent", "Chemical Engineering", StaffStatus.ACTIVE);
+        Staff staff2 = new Staff("STF-INT-002", "Bob", "Jones", "bob.jones.int@engcol.edu", "555-0102", "Senior Calibration Technician", "Instrumentation", StaffStatus.ACTIVE);
         staff1 = staffRepository.save(staff1);
         staff2 = staffRepository.save(staff2);
         assertNotNull(staff1.getId());

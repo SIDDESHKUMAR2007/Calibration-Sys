@@ -3,18 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CalibrateSys - Smart Laboratory Calibration & Compliance</title>
+    <title>SmartLab - Laboratory Equipment Calibration &amp; Compliance Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="app-header">
-        <div class="header-container">
-            <div class="brand">
-                <div class="brand-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- ===================================================================
+         1. DEDICATED LOGIN PAGE (Shown when unauthenticated)
+         =================================================================== -->
+    <div id="login-view" class="login-wrapper" style="display: none;">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M10 2v7.31"></path>
                         <path d="M14 9.3V2"></path>
                         <path d="M8.5 2h7"></path>
@@ -22,14 +26,85 @@
                         <path d="M5.52 16h12.96"></path>
                     </svg>
                 </div>
-                <div class="brand-text">
-                    <h1>CalibrateSys</h1>
-                    <p class="subtitle">Smart Laboratory Equipment Calibration & Compliance Management</p>
+                <h1 class="login-title">SmartLab</h1>
+                <p class="login-subtitle">Laboratory Equipment Calibration &amp; Compliance System</p>
+            </div>
+
+            <div id="login-error-alert" class="alert alert-danger" style="display: none;">
+                <span class="alert-icon">&#9888;</span>
+                <span id="login-error-text">Invalid email or password</span>
+            </div>
+
+            <!-- Inline feedback placeholder preserved for compatibility -->
+            <div id="auth-feedback" class="feedback-msg" style="display: none;"></div>
+
+            <form id="login-form" onsubmit="event.preventDefault(); login();" class="login-form">
+                <div class="form-group">
+                    <label for="auth-identifier">Email or Staff ID</label>
+                    <div class="input-with-icon">
+                        <span class="input-icon">&#9993;</span>
+                        <input type="text" id="auth-identifier" class="form-control" placeholder="admin@calibratesys.edu" required autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="auth-password">Password</label>
+                    <div class="input-with-icon password-wrapper">
+                        <span class="input-icon">&#128274;</span>
+                        <input type="password" id="auth-password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+                        <button type="button" id="toggle-password-btn" class="password-toggle-btn" onclick="togglePasswordVisibility()" title="Show/Hide Password">&#128065;</button>
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-login" class="btn btn-primary btn-block">
+                    <span id="login-btn-text">Sign In</span>
+                    <span id="login-spinner" class="spinner-sm" style="display: none;"></span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p>Authorized laboratory personnel only</p>
+                <div class="login-security-tag">&#128272; 256-bit Encrypted Session</div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ===================================================================
+         2. AUTHENTICATED APPLICATION SHELL
+         =================================================================== -->
+    <div id="app-shell" class="app-shell" style="display: none;">
+
+        <!-- Top Navigation Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <button id="sidebar-toggle-btn" class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle Navigation">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="header-brand" onclick="navigateTo('dashboard')">
+                    <div class="brand-badge-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M10 2v7.31"></path>
+                            <path d="M14 9.3V2"></path>
+                            <path d="M8.5 2h7"></path>
+                            <path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path>
+                            <path d="M5.52 16h12.96"></path>
+                        </svg>
+                    </div>
+                    <div class="brand-titles">
+                        <span class="brand-name">SmartLab</span>
+                        <span class="brand-domain">Calibration &amp; Compliance</span>
+                    </div>
                 </div>
             </div>
+
             <!-- Global Search Box -->
-            <div class="header-search-container">
-                <div class="search-input-wrapper">
+            <div class="header-center">
+                <div class="header-search">
                     <span class="search-icon">&#128269;</span>
                     <input type="text" id="global-search-input" class="global-search-input"
                            placeholder="Search equipment, labs, records... (min 2 chars)"
@@ -38,537 +113,1544 @@
                            onkeydown="onGlobalSearchKeyDown(event)">
                     <span id="global-search-spinner" class="search-spinner" style="display:none;"></span>
                     <button id="global-search-clear" class="search-clear-btn" style="display:none;" onclick="clearGlobalSearch()">&times;</button>
-                </div>
-                <div id="global-search-dropdown" class="global-search-dropdown" style="display:none;">
-                    <div id="global-search-results"></div>
+                    
+                    <div id="global-search-dropdown" class="global-search-dropdown" style="display:none;">
+                        <div id="global-search-results"></div>
+                    </div>
                 </div>
             </div>
-            <div class="header-status">
-                <button id="notif-bell-btn" class="notif-bell-button" onclick="scrollToNotifications()" title="View In-App Notifications">
+
+            <!-- Header Right Menu -->
+            <div class="header-right">
+                <!-- Notifications Bell -->
+                <button id="notif-bell-btn" class="header-icon-btn" onclick="navigateTo('notifications')" title="Notifications">
                     <span class="bell-icon">&#128276;</span>
-                    <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
+                    <span id="notif-badge" class="badge-count" style="display:none;">0</span>
                 </button>
-                <span id="auth-status-pill" class="status-pill status-loading">Not Authenticated</span>
-                <span id="header-status-pill" class="status-pill status-loading">Checking System...</span>
-            </div>
-        </div>
-    </header>
 
-    <main class="main-content">
-        <!-- System Health Section -->
-        <section class="hero-section">
-            <div class="hero-card">
-                <h2>Project Foundation &amp; API Status</h2>
-                <div class="status-grid">
-                    <div class="card">
-                        <div class="card-header">
-                            <span class="card-title">Backend Status</span>
-                            <span id="backend-status-indicator" class="indicator-dot loading"></span>
+                <!-- Hidden compatibility pills -->
+                <span id="auth-status-pill" style="display:none;">Authenticated</span>
+                <span id="header-status-pill" style="display:none;">System Healthy</span>
+
+                <!-- User Profile & Dropdown -->
+                <div class="user-dropdown-container">
+                    <button id="user-menu-btn" class="user-pill-btn" onclick="toggleUserDropdown()" aria-expanded="false">
+                        <div class="user-avatar" id="header-user-avatar">AD</div>
+                        <div class="user-info-text">
+                            <span class="user-name" id="header-user-name">Administrator</span>
+                            <span class="user-role-badge badge-admin" id="header-user-role">ADMIN</span>
                         </div>
-                        <div class="card-body">
-                            <div class="stat-value" id="backend-status-text">Connecting...</div>
-                            <div class="stat-meta" id="backend-app-name">Checking /api/health</div>
+                        <span class="dropdown-chevron">&#9662;</span>
+                    </button>
+
+                    <div id="user-dropdown-menu" class="user-dropdown-menu" style="display: none;">
+                        <div class="dropdown-header">
+                            <strong id="dropdown-full-name">Administrator</strong>
+                            <span id="dropdown-email" class="dropdown-sub">admin@calibratesys.edu</span>
+                            <div class="dropdown-meta" id="dropdown-meta-info">Role: ADMIN</div>
                         </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="javascript:void(0)" class="dropdown-item" onclick="navigateTo('dashboard'); closeUserDropdown();">
+                            <span>&#128202;</span> Dashboard
+                        </a>
+                        <a href="javascript:void(0)" class="dropdown-item" onclick="navigateTo('notifications'); closeUserDropdown();">
+                            <span>&#128276;</span> Notifications
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item text-danger" onclick="logout(); closeUserDropdown();">
+                            <span>&#128682;</span> Sign Out
+                        </button>
                     </div>
-
-                    <div class="card">
-                        <div class="card-header">
-                            <span class="card-title">MySQL Database</span>
-                            <span id="db-status-indicator" class="indicator-dot loading"></span>
-                        </div>
-                        <div class="card-body">
-                            <div class="stat-value" id="db-status-text">Checking...</div>
-                            <div class="stat-meta" id="db-details-text">Validating connection pool</div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-header">
-                            <span class="card-title">API Response Latency</span>
-                            <span class="indicator-dot latency-dot"></span>
-                        </div>
-                        <div class="card-body">
-                            <div class="stat-value" id="api-latency-text">-- ms</div>
-                            <div class="stat-meta" id="last-ping-time">Last checked: Just now</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="action-bar">
-                    <button id="btn-refresh" class="btn btn-primary" onclick="checkHealth()">Test /api/health</button>
-                    <a href="/api/health" target="_blank" class="btn btn-secondary">Open Raw Health JSON</a>
                 </div>
             </div>
-        </section>
+        </header>
 
-        <!-- Step 4 Management Testing Area -->
-        <section class="auth-section">
-            <div class="panel">
-                <h3>Step 4: Authentication &amp; Token Console</h3>
-                <p class="panel-desc">Authenticate as Administrator or Staff to test authorized College &amp; Laboratory REST APIs.</p>
-                <div class="form-row">
-                    <input type="text" id="auth-identifier" class="form-control" placeholder="Email or Staff ID" value="admin@calibratesys.edu">
-                    <input type="password" id="auth-password" class="form-control" placeholder="Password" value="Admin@12345">
-                    <button class="btn btn-primary" onclick="login()">Login &amp; Store JWT</button>
-                    <button class="btn btn-secondary" onclick="logout()">Clear Token</button>
+
+        <!-- Layout Body: Sidebar + Main Content -->
+        <div class="app-body">
+
+            <!-- Sidebar Navigation -->
+            <aside id="app-sidebar" class="app-sidebar">
+                <nav class="sidebar-nav">
+                    <div class="nav-section-title">MAIN</div>
+                    <a href="#/dashboard" class="nav-item active" data-route="dashboard" onclick="navigateTo('dashboard')">
+                        <span class="nav-icon">&#128202;</span>
+                        <span class="nav-label">Dashboard</span>
+                    </a>
+
+                    <div class="nav-section-title">MANAGEMENT</div>
+                    <a href="#/laboratories" class="nav-item" data-route="laboratories" onclick="navigateTo('laboratories')">
+                        <span class="nav-icon">&#9877;</span>
+                        <span class="nav-label">Laboratories</span>
+                    </a>
+                    <a href="#/staff" class="nav-item admin-only" data-route="staff" onclick="navigateTo('staff')">
+                        <span class="nav-icon">&#128101;</span>
+                        <span class="nav-label">Staff Management</span>
+                    </a>
+                    <a href="#/equipment" class="nav-item" data-route="equipment" onclick="navigateTo('equipment')">
+                        <span class="nav-icon">&#9881;</span>
+                        <span class="nav-label">Equipment Inventory</span>
+                    </a>
+
+                    <div class="nav-section-title">CALIBRATION</div>
+                    <a href="#/schedules" class="nav-item" data-route="schedules" onclick="navigateTo('schedules')">
+                        <span class="nav-icon">&#128197;</span>
+                        <span class="nav-label">Calibration Schedules</span>
+                    </a>
+                    <a href="#/records" class="nav-item" data-route="records" onclick="navigateTo('records')">
+                        <span class="nav-icon">&#9989;</span>
+                        <span class="nav-label">Calibration History</span>
+                    </a>
+                    <a href="#/documents" class="nav-item" data-route="documents" onclick="navigateTo('documents')">
+                        <span class="nav-icon">&#128196;</span>
+                        <span class="nav-label">Certificates &amp; Documents</span>
+                    </a>
+
+                    <div class="nav-section-title">MONITORING</div>
+                    <a href="#/notifications" class="nav-item" data-route="notifications" onclick="navigateTo('notifications')">
+                        <span class="nav-icon">&#128276;</span>
+                        <span class="nav-label">In-App Notifications</span>
+                    </a>
+                    <a href="#/reports" class="nav-item" data-route="reports" onclick="navigateTo('reports')">
+                        <span class="nav-icon">&#128200;</span>
+                        <span class="nav-label">Reports &amp; Compliance</span>
+                    </a>
+
+                    <div class="nav-section-title admin-only">ADMINISTRATION</div>
+                    <a href="#/audit" class="nav-item admin-only" data-route="audit" onclick="navigateTo('audit')">
+                        <span class="nav-icon">&#128220;</span>
+                        <span class="nav-label">Audit Logs</span>
+                    </a>
+                    <a href="#/colleges" class="nav-item admin-only" data-route="colleges" onclick="navigateTo('colleges')">
+                        <span class="nav-icon">&#127979;</span>
+                        <span class="nav-label">Colleges</span>
+                    </a>
+                    <a href="#/diagnostics" class="nav-item admin-only" data-route="diagnostics" onclick="navigateTo('diagnostics')">
+                        <span class="nav-icon">&#129514;</span>
+                        <span class="nav-label">System Health</span>
+                    </a>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <button class="sidebar-logout-btn" onclick="logout()">
+                        <span class="logout-icon">&#128682;</span>
+                        <span class="logout-text">Sign Out</span>
+                    </button>
                 </div>
-                <div id="auth-feedback" class="feedback-msg"></div>
-            </div>
-        </section>
+            </aside>
 
-        <!-- Step 11: Compliance Dashboard and Monitoring Module -->
-        <section id="compliance-dashboard-section" class="dashboard-section">
-            <div class="panel">
-                <div class="panel-header-with-action">
-                    <div>
-                        <h2>Step 11: Compliance Dashboard &amp; Monitoring</h2>
-                        <p class="panel-desc">Centralized operational visibility for laboratory equipment compliance, due dates, overdue alerts, and recent activities.</p>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <button class="btn btn-sm btn-primary" onclick="loadDashboard()">Refresh Dashboard</button>
-                    </div>
-                </div>
+            <!-- Backdrop for Mobile Sidebar -->
+            <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="toggleSidebar()"></div>
 
-                <!-- Scope Information & Laboratory Filter Bar -->
-                <div class="dashboard-scope-bar">
-                    <div class="scope-info">
-                        <span>Active View Scope:</span>
-                        <span id="dashboard-scope-pill" class="scope-pill admin">ORGANIZATION-WIDE</span>
-                        <span id="dashboard-scope-text" style="color: var(--text-secondary); font-size: 0.8rem;">All Laboratories</span>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <label for="dashboard-lab-filter" style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0;">Filter Lab:</label>
-                        <select id="dashboard-lab-filter" class="form-control form-control-sm" style="width: auto; min-width: 180px;" onchange="onDashboardLabFilterChange()">
-                            <option value="">All Scoped Laboratories</option>
-                        </select>
-                    </div>
-                </div>
 
-                <!-- KPI Metric Cards Grid -->
-                <div class="dashboard-kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-header">Laboratories</div>
-                        <div class="kpi-value" id="kpi-labs">0</div>
-                        <div class="kpi-meta"><span id="kpi-active-labs">0</span> active in scope</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-header">Total Equipment</div>
-                        <div class="kpi-value" id="kpi-equipment">0</div>
-                        <div class="kpi-meta">Across scoped labs</div>
-                    </div>
-                    <div class="kpi-card kpi-success">
-                        <div class="kpi-header">Operational</div>
-                        <div class="kpi-value" id="kpi-operational">0</div>
-                        <div class="kpi-meta">Ready for lab use</div>
-                    </div>
-                    <div class="kpi-card kpi-warning">
-                        <div class="kpi-header">Maintenance</div>
-                        <div class="kpi-value" id="kpi-maintenance">0</div>
-                        <div class="kpi-meta">Under repair/service</div>
-                    </div>
-                    <div class="kpi-card kpi-info">
-                        <div class="kpi-header">Upcoming</div>
-                        <div class="kpi-value" id="kpi-upcoming">0</div>
-                        <div class="kpi-meta">Within 30-day window</div>
-                    </div>
-                    <div class="kpi-card kpi-warning">
-                        <div class="kpi-header">Due Today</div>
-                        <div class="kpi-value" id="kpi-due">0</div>
-                        <div class="kpi-meta">Calibration due date</div>
-                    </div>
-                    <div class="kpi-card kpi-danger">
-                        <div class="kpi-header">Overdue</div>
-                        <div class="kpi-value" id="kpi-overdue">0</div>
-                        <div class="kpi-meta">Action required</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-header">With Documents</div>
-                        <div class="kpi-value" id="kpi-certs">0</div>
-                        <div class="kpi-meta">Documented records</div>
-                    </div>
-                </div>
+            <!-- Main View Container -->
+            <main class="app-content">
 
-                <!-- Calibration Attention Required Section -->
-                <div style="margin-top: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <h3 style="font-size: 1.1rem; color: var(--text-primary);">&#9888; Calibration Attention Required</h3>
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Sorted by urgency: Overdue &rarr; Due &rarr; Upcoming</span>
-                    </div>
-                    <div class="attention-grid">
-                        <!-- Column 1: Overdue -->
-                        <div class="attention-column">
-                            <div class="attention-col-header overdue">
-                                <span>&#128308; Overdue Calibrations</span>
-                                <span id="attention-overdue-count" class="badge-priority-critical">0</span>
+                <!-- =======================================================
+                     VIEW 1: DASHBOARD
+                     ======================================================= -->
+                <section id="view-dashboard" class="route-view active">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Compliance &amp; Operational Dashboard</h2>
+                            <p class="view-subtitle" id="dashboard-welcome-msg">Here is the real-time calibration compliance overview for your assigned laboratories.</p>
+                        </div>
+                        <div class="view-actions">
+                            <div class="lab-filter-wrapper">
+                                <label for="dashboard-lab-filter" class="filter-label">Filter Lab:</label>
+                                <select id="dashboard-lab-filter" class="form-select form-select-sm" onchange="onDashboardLabFilterChange()">
+                                    <option value="">All Scoped Laboratories</option>
+                                </select>
                             </div>
-                            <div id="dash-overdue-list" style="max-height: 280px; overflow-y: auto;">
-                                <div class="text-center" style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">No overdue calibrations.</div>
+                            <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">
+                                <span>&#128259;</span> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="scope-banner" id="dashboard-scope-pill" style="display:none;">
+                        <span class="banner-icon">&#8505;</span>
+                        <span id="dashboard-scope-text">Viewing Scoped Laboratories</span>
+                    </div>
+
+                    <!-- 8 KPI Cards Grid -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card" onclick="navigateTo('laboratories')">
+                            <div class="kpi-icon-box bg-slate">
+                                <span>&#9877;</span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Laboratories</span>
+                                <span class="kpi-value" id="kpi-labs">0</span>
+                                <span class="kpi-meta"><span id="kpi-active-labs">0</span> operational</span>
                             </div>
                         </div>
 
-                        <!-- Column 2: Due Today -->
-                        <div class="attention-column">
-                            <div class="attention-col-header due">
-                                <span>&#128993; Due Today</span>
-                                <span id="attention-due-count" class="badge-priority-medium">0</span>
+                        <div class="kpi-card" onclick="navigateTo('equipment')">
+                            <div class="kpi-icon-box bg-blue">
+                                <span>&#9881;</span>
                             </div>
-                            <div id="dash-due-list" style="max-height: 280px; overflow-y: auto;">
-                                <div class="text-center" style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">No calibrations due today.</div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Total Equipment</span>
+                                <span class="kpi-value" id="kpi-equipment">0</span>
+                                <span class="kpi-meta">Across laboratories</span>
                             </div>
                         </div>
 
-                        <!-- Column 3: Upcoming -->
-                        <div class="attention-column">
-                            <div class="attention-col-header upcoming">
-                                <span>&#128309; Upcoming Calibrations</span>
-                                <span id="attention-upcoming-count" class="badge-unread">0</span>
+                        <div class="kpi-card" onclick="navigateTo('equipment')">
+                            <div class="kpi-icon-box bg-emerald">
+                                <span>&#9989;</span>
                             </div>
-                            <div id="dash-upcoming-list" style="max-height: 280px; overflow-y: auto;">
-                                <div class="text-center" style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">No upcoming calibrations.</div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Operational</span>
+                                <span class="kpi-value text-success" id="kpi-operational">0</span>
+                                <span class="kpi-meta">Ready for lab use</span>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card" onclick="navigateTo('equipment')">
+                            <div class="kpi-icon-box bg-amber">
+                                <span>&#128295;</span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Maintenance</span>
+                                <span class="kpi-value text-warning" id="kpi-maintenance">0</span>
+                                <span class="kpi-meta">Under service</span>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card" onclick="navigateTo('schedules')">
+                            <div class="kpi-icon-box bg-sky">
+                                <span>&#128197;</span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Upcoming</span>
+                                <span class="kpi-value text-info" id="kpi-upcoming">0</span>
+                                <span class="kpi-meta">Approaching due date</span>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card" onclick="navigateTo('schedules')">
+                            <div class="kpi-icon-box bg-orange">
+                                <span>&#9200;</span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Due Today</span>
+                                <span class="kpi-value text-warning" id="kpi-due">0</span>
+                                <span class="kpi-meta">Requires calibration</span>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card" onclick="navigateTo('schedules')">
+                            <div class="kpi-icon-box bg-rose">
+                                <span>&#9888;</span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Overdue</span>
+                                <span class="kpi-value text-danger" id="kpi-overdue">0</span>
+                                <span class="kpi-meta">Non-compliant</span>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card" onclick="navigateTo('documents')">
+                            <div class="kpi-icon-box bg-indigo">
+                                <span>&#128196;</span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Documents</span>
+                                <span class="kpi-value" id="kpi-certs">0</span>
+                                <span class="kpi-meta">Certificates linked</span>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Laboratory Overview & Notifications Subgrid -->
-                <div class="dashboard-subgrid">
+                    <!-- Quick Actions Row (Role-aware) -->
+                    <div class="dashboard-quick-actions admin-only">
+                        <span class="quick-actions-label">Quick Actions:</span>
+                        <button class="btn btn-outline-primary btn-sm" onclick="openLabModal()">+ Add Laboratory</button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="openStaffModal()">+ Register Staff</button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="openEquipmentModal()">+ Add Equipment</button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="openScheduleModal()">+ Schedule Calibration</button>
+                    </div>
+
+                    <!-- Calibration Attention Section -->
+                    <div class="card attention-card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <div>
+                                <h3 class="card-title">Calibration Attention</h3>
+                                <p class="card-subtitle">Prioritized calibration events requiring staff verification</p>
+                            </div>
+                            <button class="btn btn-secondary btn-sm admin-only" onclick="triggerCalibrationAlerts()" title="Trigger in-app notification alerts for due calibrations">
+                                <span>&#128276;</span> Run Alert Engine
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="attention-columns">
+                                <!-- Overdue Column -->
+                                <div class="attention-col col-overdue">
+                                    <div class="attention-col-header">
+                                        <span class="badge badge-danger">Overdue (<span id="attention-overdue-count">0</span>)</span>
+                                    </div>
+                                    <div id="dash-overdue-list" class="attention-items-container">
+                                        <div class="empty-state-sm">No overdue calibrations</div>
+                                    </div>
+                                </div>
+
+                                <!-- Due Today Column -->
+                                <div class="attention-col col-due">
+                                    <div class="attention-col-header">
+                                        <span class="badge badge-warning">Due Today (<span id="attention-due-count">0</span>)</span>
+                                    </div>
+                                    <div id="dash-due-list" class="attention-items-container">
+                                        <div class="empty-state-sm">No calibrations due today</div>
+                                    </div>
+                                </div>
+
+                                <!-- Upcoming Column -->
+                                <div class="attention-col col-upcoming">
+                                    <div class="attention-col-header">
+                                        <span class="badge badge-info">Upcoming (<span id="attention-upcoming-count">0</span>)</span>
+                                    </div>
+                                    <div id="dash-upcoming-list" class="attention-items-container">
+                                        <div class="empty-state-sm">No upcoming calibrations</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Laboratory Compliance Overview Table -->
-                    <div class="panel" style="margin-bottom: 0;">
-                        <div class="panel-header-with-action" style="margin-bottom: 0.75rem;">
-                            <h4>Laboratory Overview &amp; Overdue Status</h4>
-                            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem;">
-                                <input type="checkbox" id="cb-overdue-only" onchange="loadDashboardLaboratories()">
-                                <label for="cb-overdue-only" style="margin-bottom: 0; cursor: pointer;">Show Only Overdue</label>
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <div>
+                                <h3 class="card-title">Laboratory Compliance Summary</h3>
+                                <p class="card-subtitle">Equipment operational ratios and pending calibrations per laboratory</p>
+                            </div>
+                            <button class="btn btn-link btn-sm" onclick="navigateTo('laboratories')">View All Labs &rarr;</button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Laboratory</th>
+                                            <th>College</th>
+                                            <th>Total Equipment</th>
+                                            <th>Operational %</th>
+                                            <th>Upcoming</th>
+                                            <th>Due</th>
+                                            <th>Overdue</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dash-lab-table-body">
+                                        <tr><td colspan="8" class="text-center text-muted p-4">Loading laboratory metrics...</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                        <div class="table-container" style="max-height: 250px; overflow-y: auto;">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Laboratory</th>
-                                        <th>Code</th>
-                                        <th>Total Equip</th>
-                                        <th>Operational</th>
-                                        <th>Upcoming</th>
-                                        <th>Due</th>
-                                        <th>Overdue</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="dash-lab-table-body">
-                                    <tr><td colspan="7" class="text-center">Authenticate to load laboratories</td></tr>
-                                </tbody>
-                            </table>
+                    </div>
+
+                    <!-- Recent Calibrations & Notification Widget Grid -->
+                    <div class="dashboard-two-col" style="margin-top: 1.5rem;">
+                        <!-- Recent Activity -->
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">Recent Calibrations</h3>
+                                    <p class="card-subtitle">Latest verified calibration events</p>
+                                </div>
+                                <button class="btn btn-link btn-sm" onclick="navigateTo('records')">View All &rarr;</button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Equipment</th>
+                                                <th>Laboratory</th>
+                                                <th>Date</th>
+                                                <th>Result</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="dash-recent-table-body">
+                                            <tr><td colspan="4" class="text-center text-muted p-4">No recent calibrations</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Notifications Panel -->
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">Recent In-App Alerts</h3>
+                                    <p class="card-subtitle"><span id="dash-notif-count-badge" class="badge badge-primary">0 Unread</span></p>
+                                </div>
+                                <button class="btn btn-link btn-sm" onclick="navigateTo('notifications')">View All &rarr;</button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="dash-notif-widget-list" class="widget-notif-list">
+                                    <div class="empty-state-sm">No recent alerts</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 2: LABORATORIES
+                     ======================================================= -->
+                <section id="view-laboratories" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Laboratories</h2>
+                            <p class="view-subtitle">Institutional laboratories and departmental calibration scopes</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadLaboratories()">
+                                <span>&#128259;</span> Refresh
+                            </button>
+                            <button class="btn btn-primary btn-sm admin-only" onclick="openLabModal()">
+                                <span>+</span> Add Laboratory
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Notification Summary Widget -->
-                    <div class="panel" style="margin-bottom: 0;">
-                        <div class="panel-header-with-action" style="margin-bottom: 0.75rem;">
-                            <h4>Notifications Widget</h4>
-                            <span id="dash-notif-count-badge" class="notif-badge" style="position: static; font-size: 0.75rem;">0</span>
-                        </div>
-                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Recent unread alerts for your account:</p>
-                        <div id="dash-notif-widget-list" style="max-height: 180px; overflow-y: auto; font-size: 0.8rem;">
-                            <div class="text-center" style="padding: 1rem; color: var(--text-muted);">No unread alerts.</div>
-                        </div>
-                        <div style="margin-top: 0.75rem; text-align: right;">
-                            <button class="btn btn-sm btn-secondary" onclick="scrollToNotifications()">Open Notification Console &rarr;</button>
+                    <!-- Filter Bar -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-college">Filter College</label>
+                                <select id="filter-college" class="form-select form-select-sm" onchange="loadLaboratories()">
+                                    <option value="">All Colleges</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-status">Filter Status</label>
+                                <select id="filter-status" class="form-select form-select-sm" onchange="loadLaboratories()">
+                                    <option value="">All Statuses</option>
+                                    <option value="ACTIVE">ACTIVE</option>
+                                    <option value="INACTIVE">INACTIVE</option>
+                                    <option value="MAINTENANCE">MAINTENANCE</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Recent Calibration Activity Table -->
-                <div style="margin-top: 1.5rem;">
-                    <div class="panel-header-with-action" style="margin-bottom: 0.75rem;">
-                        <h4>Recent Calibration Activity</h4>
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Immutable audit records with certificate status</span>
+                    <div id="lab-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Laboratories Data Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Laboratory Name</th>
+                                            <th>College</th>
+                                            <th>Department</th>
+                                            <th>Location</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lab-table-body">
+                                        <tr><td colspan="7" class="text-center text-muted p-4">Loading laboratories...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
-                    <div class="table-container" style="max-height: 250px; overflow-y: auto;">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Equipment</th>
-                                    <th>Asset Tag</th>
-                                    <th>Laboratory</th>
-                                    <th>Calibration Date</th>
-                                    <th>Next Due Date</th>
-                                    <th>Result</th>
-                                    <th>Calibrator</th>
-                                    <th>Certificate</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dash-recent-table-body">
-                                <tr><td colspan="9" class="text-center">No calibration activity available.</td></tr>
-                            </tbody>
-                        </table>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 3: STAFF MANAGEMENT (Admin only)
+                     ======================================================= -->
+                <section id="view-staff" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Staff Management &amp; Laboratory Assignments</h2>
+                            <p class="view-subtitle">Manage institutional staff accounts and assign roles across laboratories</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadStaff()">
+                                <span>&#128259;</span> Refresh Staff
+                            </button>
+                            <button class="btn btn-primary btn-sm admin-only" onclick="openStaffModal()">
+                                <span>+</span> Register Staff
+                            </button>
+                        </div>
                     </div>
-                </div>
+
+                    <!-- Filters -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-staff-dept">Department</label>
+                                <input type="text" id="filter-staff-dept" class="form-control form-control-sm" placeholder="Filter by department..." oninput="loadStaff()">
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-staff-status">Status</label>
+                                <select id="filter-staff-status" class="form-select form-select-sm" onchange="loadStaff()">
+                                    <option value="">All Statuses</option>
+                                    <option value="ACTIVE">ACTIVE</option>
+                                    <option value="INACTIVE">INACTIVE</option>
+                                    <option value="SUSPENDED">SUSPENDED</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="staff-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Staff Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Staff ID</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Designation</th>
+                                            <th>Department</th>
+                                            <th>System Role</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="staff-table-body">
+                                        <tr><td colspan="8" class="text-center text-muted p-4">Loading staff records...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Laboratory Assignments Sub-Section -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <div>
+                                <h3 class="card-title">Laboratory Staff Assignments</h3>
+                                <p class="card-subtitle">Assign staff members to laboratories with specific roles (Primary In-Charge, Coordinator, etc.)</p>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label for="assign-lab-select">Select Laboratory to View / Manage Assignments</label>
+                                    <select id="assign-lab-select" class="form-select" onchange="onAssignLabSelected()">
+                                        <option value="">-- Choose Laboratory --</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Assignment Form -->
+                            <form id="assignment-form" onsubmit="saveAssignment(event)" class="crud-form admin-only" style="margin-top: 1rem; padding: 1rem; background: var(--bg-main); border-radius: 8px;">
+                                <div class="form-row">
+                                    <div class="form-group col-md-4">
+                                        <label for="assign-staff-select">Staff Member</label>
+                                        <select id="assign-staff-select" class="form-select" required>
+                                            <option value="">-- Select Staff Member --</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label for="assign-role-select">Role in Laboratory</label>
+                                        <select id="assign-role-select" class="form-select" required>
+                                            <option value="PRIMARY_INCHARGE">PRIMARY_INCHARGE</option>
+                                            <option value="LAB_TECHNICIAN" selected>LAB_TECHNICIAN</option>
+                                            <option value="SAFETY_OFFICER">SAFETY_OFFICER</option>
+                                            <option value="CALIBRATION_COORDINATOR">CALIBRATION_COORDINATOR</option>
+                                            <option value="STAFF">STAFF</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label for="assign-status-select">Assignment Status</label>
+                                        <select id="assign-status-select" class="form-select">
+                                            <option value="ACTIVE">ACTIVE</option>
+                                            <option value="INACTIVE">INACTIVE</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row" style="align-items: center; justify-content: space-between;">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="assign-primary-contact"> Mark as Primary Contact for this Lab
+                                    </label>
+                                    <div class="form-actions">
+                                        <button type="submit" id="btn-assign-save" class="btn btn-primary btn-sm">Assign / Update Staff</button>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="resetAssignmentForm()">Reset Form</button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <div id="assignment-feedback" class="feedback-msg" style="display:none;"></div>
+
+                            <!-- Assignments Table -->
+                            <div class="table-responsive" style="margin-top: 1rem;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Staff Member</th>
+                                            <th>Email</th>
+                                            <th>Role in Lab</th>
+                                            <th>Primary Contact</th>
+                                            <th>Assignment Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="assignment-table-body">
+                                        <tr><td colspan="6" class="text-center text-muted p-4">Select a laboratory above to view assignments</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 4: EQUIPMENT INVENTORY
+                     ======================================================= -->
+                <section id="view-equipment" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Equipment Inventory</h2>
+                            <p class="view-subtitle">Laboratory assets, serial numbers, operational statuses, and calibration tracking</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadEquipment()">
+                                <span>&#128259;</span> Refresh
+                            </button>
+                            <button class="btn btn-primary btn-sm admin-only" onclick="openEquipmentModal()">
+                                <span>+</span> Add Equipment
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-equipment-search">Search Keyword</label>
+                                <input type="text" id="filter-equipment-search" class="form-control form-control-sm" placeholder="Search tag, name, serial..." oninput="loadEquipment()">
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-equipment-lab">Laboratory</label>
+                                <select id="filter-equipment-lab" class="form-select form-select-sm" onchange="loadEquipment()">
+                                    <option value="">All Scoped Laboratories</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-equipment-status">Operational Status</label>
+                                <select id="filter-equipment-status" class="form-select form-select-sm" onchange="loadEquipment()">
+                                    <option value="">All Statuses</option>
+                                    <option value="OPERATIONAL">OPERATIONAL</option>
+                                    <option value="CALIBRATION_DUE">CALIBRATION_DUE</option>
+                                    <option value="OUT_OF_CALIBRATION">OUT_OF_CALIBRATION</option>
+                                    <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
+                                    <option value="DECOMMISSIONED">DECOMMISSIONED</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="equipment-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Equipment Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Asset Tag</th>
+                                            <th>Equipment Name</th>
+                                            <th>Serial Number</th>
+                                            <th>Laboratory</th>
+                                            <th>Manufacturer / Model</th>
+                                            <th>Status</th>
+                                            <th>Next Calibration</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="equipment-table-body">
+                                        <tr><td colspan="8" class="text-center text-muted p-4">Loading equipment inventory...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 5: CALIBRATION SCHEDULES
+                     ======================================================= -->
+                <section id="view-schedules" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Calibration Schedules</h2>
+                            <p class="view-subtitle">Planned calibration intervals, upcoming due dates, and lifecycle statuses</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadSchedules()">
+                                <span>&#128259;</span> Refresh
+                            </button>
+                            <button class="btn btn-primary btn-sm admin-only" onclick="openScheduleModal()">
+                                <span>+</span> Schedule Calibration
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Status Filter Tabs -->
+                    <div class="tabs-nav" style="margin-bottom: 1rem;">
+                        <button class="tab-btn active" onclick="filterSchedulesByQuickCategory('ALL', this)">All</button>
+                        <button class="tab-btn" onclick="filterSchedulesByQuickCategory('UPCOMING', this)">Upcoming</button>
+                        <button class="tab-btn" onclick="filterSchedulesByQuickCategory('DUE', this)">Due Today</button>
+                        <button class="tab-btn" onclick="filterSchedulesByQuickCategory('OVERDUE', this)">Overdue</button>
+                        <button class="tab-btn" onclick="filterSchedulesByQuickCategory('COMPLETED', this)">Completed</button>
+                        <button class="tab-btn" onclick="filterSchedulesByQuickCategory('CANCELLED', this)">Cancelled</button>
+                    </div>
+
+                    <!-- Filter Bar -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-schedule-lab">Laboratory</label>
+                                <select id="filter-schedule-lab" class="form-select form-select-sm" onchange="loadSchedules()">
+                                    <option value="">All Laboratories</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-schedule-equipment">Equipment</label>
+                                <select id="filter-schedule-equipment" class="form-select form-select-sm" onchange="loadSchedules()">
+                                    <option value="">All Equipment</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-schedule-priority">Priority</label>
+                                <select id="filter-schedule-priority" class="form-select form-select-sm" onchange="loadSchedules()">
+                                    <option value="">All Priorities</option>
+                                    <option value="CRITICAL">CRITICAL</option>
+                                    <option value="HIGH">HIGH</option>
+                                    <option value="MEDIUM">MEDIUM</option>
+                                    <option value="LOW">LOW</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-schedule-status">Status</label>
+                                <select id="filter-schedule-status" class="form-select form-select-sm" onchange="loadSchedules()">
+                                    <option value="">All Statuses</option>
+                                    <option value="SCHEDULED">SCHEDULED</option>
+                                    <option value="UPCOMING">UPCOMING</option>
+                                    <option value="DUE">DUE</option>
+                                    <option value="OVERDUE">OVERDUE</option>
+                                    <option value="COMPLETED">COMPLETED</option>
+                                    <option value="CANCELLED">CANCELLED</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-schedule-from">From Date</label>
+                                <input type="date" id="filter-schedule-from" class="form-control form-control-sm" onchange="loadSchedules()">
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-schedule-to">To Date</label>
+                                <input type="date" id="filter-schedule-to" class="form-control form-control-sm" onchange="loadSchedules()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="schedule-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Schedules Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Equipment</th>
+                                            <th>Laboratory</th>
+                                            <th>Scheduled Date</th>
+                                            <th>Due Date</th>
+                                            <th>Priority</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="schedule-table-body">
+                                        <tr><td colspan="7" class="text-center text-muted p-4">Loading calibration schedules...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 6: CALIBRATION HISTORY / RECORDS
+                     ======================================================= -->
+                <section id="view-records" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Calibration History &amp; Records</h2>
+                            <p class="view-subtitle">Immutable records of completed calibrations, results, and measurement standards</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadRecords()">
+                                <span>&#128259;</span> Refresh
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="openRecordModal()">
+                                <span>&#9989;</span> Record Calibration
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-record-lab">Laboratory</label>
+                                <select id="filter-record-lab" class="form-select form-select-sm" onchange="loadRecords()">
+                                    <option value="">All Laboratories</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-record-equipment">Equipment</label>
+                                <select id="filter-record-equipment" class="form-select form-select-sm" onchange="loadRecords()">
+                                    <option value="">All Equipment</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-record-result">Result</label>
+                                <select id="filter-record-result" class="form-select form-select-sm" onchange="loadRecords()">
+                                    <option value="">All Results</option>
+                                    <option value="PASSED">PASSED</option>
+                                    <option value="FAILED">FAILED</option>
+                                    <option value="PASSED_WITH_LIMITATIONS">PASSED_WITH_LIMITATIONS</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-record-type">Calibrator Type</label>
+                                <select id="filter-record-type" class="form-select form-select-sm" onchange="loadRecords()">
+                                    <option value="">All Types</option>
+                                    <option value="INTERNAL">INTERNAL</option>
+                                    <option value="EXTERNAL_VENDOR">EXTERNAL_VENDOR</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-record-from">From</label>
+                                <input type="date" id="filter-record-from" class="form-control form-control-sm" onchange="loadRecords()">
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-record-to">To</label>
+                                <input type="date" id="filter-record-to" class="form-control form-control-sm" onchange="loadRecords()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="record-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Records Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Equipment</th>
+                                            <th>Laboratory</th>
+                                            <th>Calibration Date</th>
+                                            <th>Next Due Date</th>
+                                            <th>Result</th>
+                                            <th>Calibrator</th>
+                                            <th>Type</th>
+                                            <th>Certificate</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="record-table-body">
+                                        <tr><td colspan="9" class="text-center text-muted p-4">Loading calibration history...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 7: CERTIFICATES & DOCUMENTS
+                     ======================================================= -->
+                <section id="view-documents" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Certificates &amp; Documents</h2>
+                            <p class="view-subtitle">Secure calibration certificates, vendor reports, and compliance documentation</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadDocuments()">
+                                <span>&#128259;</span> Refresh
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="openDocumentModal()">
+                                <span>&#128196;</span> Upload Certificate
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-doc-equipment">Equipment</label>
+                                <select id="filter-doc-equipment" class="form-select form-select-sm" onchange="loadDocuments()">
+                                    <option value="">All Equipment</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-doc-cert-no">Certificate Number</label>
+                                <input type="text" id="filter-doc-cert-no" class="form-control form-control-sm" placeholder="Filter by cert #..." oninput="loadDocuments()">
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-doc-issue-start">Issue Date From</label>
+                                <input type="date" id="filter-doc-issue-start" class="form-control form-control-sm" onchange="loadDocuments()">
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-doc-issue-end">Issue Date To</label>
+                                <input type="date" id="filter-doc-issue-end" class="form-control form-control-sm" onchange="loadDocuments()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="doc-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Documents Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Document Name</th>
+                                            <th>Cert #</th>
+                                            <th>Equipment</th>
+                                            <th>Laboratory</th>
+                                            <th>Issue Date</th>
+                                            <th>Valid Until</th>
+                                            <th>File Size</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="document-table-body">
+                                        <tr><td colspan="8" class="text-center text-muted p-4">Loading documents...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preserved doc-table-body alias for full backward compatibility -->
+                    <table style="display:none;"><tbody id="doc-table-body"></tbody></table>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 8: IN-APP NOTIFICATIONS
+                     ======================================================= -->
+                <section id="view-notifications" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">In-App Notifications</h2>
+                            <p class="view-subtitle">Calibration alerts and compliance updates routed to your assigned laboratories</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm admin-only" onclick="triggerCalibrationAlerts()" title="Trigger alert generation">
+                                <span>&#9889;</span> Generate Alerts
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="markAllNotificationsAsRead()">
+                                <span>&#10003;</span> Mark All as Read
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Educational Workflow Banner -->
+                    <div class="notif-workflow-banner">
+                        <div class="banner-icon">&#128276;</div>
+                        <div class="banner-body">
+                            <h4>Laboratory Calibration Notification Dispatch Workflow</h4>
+                            <p>Automated calibration alerts evaluated from equipment schedules are scoped and delivered directly to assigned laboratory personnel.</p>
+                            <div class="workflow-steps">
+                                <span class="step-pill"><strong>1</strong> System / Admin triggers alert evaluation</span>
+                                <span class="step-arrow">&rarr;</span>
+                                <span class="step-pill"><strong>2</strong> In-App notification dispatched to assigned staff</span>
+                                <span class="step-arrow">&rarr;</span>
+                                <span class="step-pill"><strong>3</strong> Real-time header bell badge updates</span>
+                                <span class="step-arrow">&rarr;</span>
+                                <span class="step-pill"><strong>4</strong> Staff reviews &amp; marks as read</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-notif-status">Read Status</label>
+                                <select id="filter-notif-status" class="form-select form-select-sm" onchange="loadNotifications()">
+                                    <option value="">All Notifications</option>
+                                    <option value="UNREAD" selected>Unread Only</option>
+                                    <option value="READ">Read</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-notif-type">Notification Type</label>
+                                <select id="filter-notif-type" class="form-select form-select-sm" onchange="loadNotifications()">
+                                    <option value="">All Types</option>
+                                    <option value="CALIBRATION_UPCOMING">Upcoming Calibration</option>
+                                    <option value="CALIBRATION_DUE">Calibration Due Today</option>
+                                    <option value="CALIBRATION_OVERDUE">Calibration Overdue</option>
+                                    <option value="CALIBRATION_COMPLETED">Calibration Completed</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-notif-priority">Priority</label>
+                                <select id="filter-notif-priority" class="form-select form-select-sm" onchange="loadNotifications()">
+                                    <option value="">All Priorities</option>
+                                    <option value="CRITICAL">Critical</option>
+                                    <option value="HIGH">High</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="LOW">Low</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="notif-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Notifications Feed Container -->
+                    <div id="notifications-section" style="margin-top: 1rem;">
+                        <div id="notifications-list-container" class="notifications-feed">
+                            <div class="empty-state-sm">Loading notifications...</div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 9: REPORTS & COMPLIANCE
+                     ======================================================= -->
+                <section id="view-reports" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Reports &amp; Compliance Documentation</h2>
+                            <p class="view-subtitle">Generate operational summaries, audit listings, and export compliance data to CSV</p>
+                        </div>
+                        <div class="view-actions">
+                            <button id="btn-export-report" class="btn btn-primary btn-sm" onclick="exportCurrentReportCsv()">
+                                <span>&#128190;</span> Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Category Cards (9 types) -->
+                    <div class="reports-category-grid">
+                        <div class="report-cat-card active" onclick="selectReportType('CALIBRATION_STATUS', this)">
+                            <div class="cat-icon">&#128202;</div>
+                            <div class="cat-title">Calibration Status</div>
+                            <div class="cat-desc">Complete overview across statuses</div>
+                        </div>
+                        <div class="report-cat-card" onclick="selectReportType('UPCOMING_CALIBRATIONS', this)">
+                            <div class="cat-icon">&#128197;</div>
+                            <div class="cat-title">Upcoming Calibrations</div>
+                            <div class="cat-desc">Schedules approaching due dates</div>
+                        </div>
+                        <div class="report-cat-card" onclick="selectReportType('DUE_CALIBRATIONS', this)">
+                            <div class="cat-icon">&#9200;</div>
+                            <div class="cat-title">Due Calibrations</div>
+                            <div class="cat-desc">Calibrations due today</div>
+                        </div>
+                        <div class="report-cat-card" onclick="selectReportType('OVERDUE_CALIBRATIONS', this)">
+                            <div class="cat-icon text-danger">&#9888;</div>
+                            <div class="cat-title">Overdue Calibrations</div>
+                            <div class="cat-desc">Non-compliant critical equipment</div>
+                        </div>
+                        <div class="report-cat-card" onclick="selectReportType('CALIBRATION_HISTORY', this)">
+                            <div class="cat-icon">&#9989;</div>
+                            <div class="cat-title">Calibration History</div>
+                            <div class="cat-desc">Historical records and test results</div>
+                        </div>
+                        <div class="report-cat-card" onclick="selectReportType('EQUIPMENT_INVENTORY', this)">
+                            <div class="cat-icon">&#9881;</div>
+                            <div class="cat-title">Equipment Inventory</div>
+                            <div class="cat-desc">Full asset register with frequencies</div>
+                        </div>
+                        <div class="report-cat-card" onclick="selectReportType('LABORATORY_SUMMARY', this)">
+                            <div class="cat-icon">&#9877;</div>
+                            <div class="cat-title">Laboratory Summary</div>
+                            <div class="cat-desc">Compliance metrics per lab</div>
+                        </div>
+                        <div class="report-cat-card admin-only" onclick="selectReportType('STAFF_ASSIGNMENTS', this)">
+                            <div class="cat-icon">&#128101;</div>
+                            <div class="cat-title">Staff Assignments</div>
+                            <div class="cat-desc">Laboratory staff role mapping</div>
+                        </div>
+                        <div class="report-cat-card" onclick="selectReportType('COMPLIANCE_ATTENTION', this)">
+                            <div class="cat-icon text-warning">&#128680;</div>
+                            <div class="cat-title">Compliance Attention</div>
+                            <div class="cat-desc">Actionable attention items</div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Filter Controls -->
+                    <div class="card filter-card" style="margin-top: 1rem;">
+                        <div class="filter-row">
+                            <div class="filter-item" id="filter-group-lab">
+                                <label for="report-filter-lab">Laboratory</label>
+                                <select id="report-filter-lab" class="form-select form-select-sm">
+                                    <option value="">All Scoped Laboratories</option>
+                                </select>
+                            </div>
+                            <div class="filter-item" id="filter-group-date-from">
+                                <label for="report-filter-from">From Date</label>
+                                <input type="date" id="report-filter-from" class="form-control form-control-sm">
+                            </div>
+                            <div class="filter-item" id="filter-group-date-to">
+                                <label for="report-filter-to">To Date</label>
+                                <input type="date" id="report-filter-to" class="form-control form-control-sm">
+                            </div>
+                            <div class="filter-item" id="filter-group-equip-status">
+                                <label for="report-filter-equip-status">Equipment Status</label>
+                                <select id="report-filter-equip-status" class="form-select form-select-sm">
+                                    <option value="">All Statuses</option>
+                                    <option value="OPERATIONAL">OPERATIONAL</option>
+                                    <option value="CALIBRATION_DUE">CALIBRATION_DUE</option>
+                                    <option value="OUT_OF_CALIBRATION">OUT_OF_CALIBRATION</option>
+                                    <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
+                                    <option value="DECOMMISSIONED">DECOMMISSIONED</option>
+                                </select>
+                            </div>
+                            <div class="filter-item" id="filter-group-priority" style="display:none;">
+                                <label for="report-filter-priority">Priority</label>
+                                <select id="report-filter-priority" class="form-select form-select-sm">
+                                    <option value="">All Priorities</option>
+                                    <option value="CRITICAL">CRITICAL</option>
+                                    <option value="HIGH">HIGH</option>
+                                    <option value="MEDIUM">MEDIUM</option>
+                                    <option value="LOW">LOW</option>
+                                </select>
+                            </div>
+                            <div class="filter-item" id="filter-group-result" style="display:none;">
+                                <label for="report-filter-result">Calibration Result</label>
+                                <select id="report-filter-result" class="form-select form-select-sm">
+                                    <option value="">All Results</option>
+                                    <option value="PASSED">PASSED</option>
+                                    <option value="FAILED">FAILED</option>
+                                    <option value="PASSED_WITH_LIMITATIONS">PASSED_WITH_LIMITATIONS</option>
+                                </select>
+                            </div>
+                            <div class="filter-item" id="filter-group-calibrator-type" style="display:none;">
+                                <label for="report-filter-calibrator-type">Calibrator Type</label>
+                                <select id="report-filter-calibrator-type" class="form-select form-select-sm">
+                                    <option value="">All Types</option>
+                                    <option value="INTERNAL">INTERNAL</option>
+                                    <option value="EXTERNAL_VENDOR">EXTERNAL_VENDOR</option>
+                                </select>
+                            </div>
+                            <div class="filter-item" style="align-self: flex-end;">
+                                <button class="btn btn-primary btn-sm" onclick="applyReportFilters()">Apply Filters</button>
+                                <button class="btn btn-secondary btn-sm" onclick="resetReportFilters()">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="report-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Report Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table" id="report-data-table">
+                                    <thead id="report-table-head">
+                                        <!-- Rendered dynamically -->
+                                    </thead>
+                                    <tbody id="report-table-body">
+                                        <tr><td colspan="10" class="text-center text-muted p-4">Select a report and click Apply Filters to load data.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <!-- Report Pagination Bar -->
+                        <div id="report-pagination-bar" class="card-footer pagination-row" style="display:none;">
+                            <div class="pagination-info" id="report-pagination-info">Showing 0 records</div>
+                            <div class="pagination-controls">
+                                <button class="btn btn-outline btn-xs" id="btn-report-prev" onclick="changeReportPage(-1)">&laquo; Prev</button>
+                                <span id="report-page-current" class="page-indicator">1</span>
+                                <button class="btn btn-outline btn-xs" id="btn-report-next" onclick="changeReportPage(1)">Next &raquo;</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 10: AUDIT LOGS (Admin only)
+                     ======================================================= -->
+                <section id="view-audit" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Audit Trail &amp; Activity Log</h2>
+                            <p class="view-subtitle">Immutable append-only record of all administrative operations, entity alterations, and security events</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadAuditLogs()">
+                                <span>&#128259;</span> Refresh Logs
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="card filter-card">
+                        <div class="filter-row">
+                            <div class="filter-item">
+                                <label for="filter-audit-action">Action</label>
+                                <select id="filter-audit-action" class="form-select form-select-sm" onchange="loadAuditLogs()">
+                                    <option value="">All Actions</option>
+                                    <option value="CREATE">CREATE</option>
+                                    <option value="UPDATE">UPDATE</option>
+                                    <option value="DELETE">DELETE</option>
+                                    <option value="LOGIN">LOGIN</option>
+                                    <option value="LOGIN_FAILED">LOGIN_FAILED</option>
+                                    <option value="LOGOUT">LOGOUT</option>
+                                    <option value="CALIBRATE">CALIBRATE</option>
+                                    <option value="UPLOAD">UPLOAD</option>
+                                    <option value="DOWNLOAD">DOWNLOAD</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-audit-entity-type">Entity Type</label>
+                                <select id="filter-audit-entity-type" class="form-select form-select-sm" onchange="loadAuditLogs()">
+                                    <option value="">All Entities</option>
+                                    <option value="COLLEGE">COLLEGE</option>
+                                    <option value="LABORATORY">LABORATORY</option>
+                                    <option value="STAFF">STAFF</option>
+                                    <option value="LABORATORY_STAFF">LABORATORY_STAFF</option>
+                                    <option value="EQUIPMENT">EQUIPMENT</option>
+                                    <option value="CALIBRATION_SCHEDULE">CALIBRATION_SCHEDULE</option>
+                                    <option value="CALIBRATION_RECORD">CALIBRATION_RECORD</option>
+                                    <option value="CALIBRATION_DOCUMENT">CALIBRATION_DOCUMENT</option>
+                                    <option value="NOTIFICATION">NOTIFICATION</option>
+                                    <option value="AUTHENTICATION">AUTHENTICATION</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-audit-from">From Date</label>
+                                <input type="date" id="filter-audit-from" class="form-control form-control-sm" onchange="loadAuditLogs()">
+                            </div>
+                            <div class="filter-item">
+                                <label for="filter-audit-to">To Date</label>
+                                <input type="date" id="filter-audit-to" class="form-control form-control-sm" onchange="loadAuditLogs()">
+                            </div>
+                            <div class="filter-item" style="align-self: flex-end;">
+                                <button class="btn btn-secondary btn-sm" onclick="resetAuditFilters()">Reset Filters</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="audit-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <!-- Audit Logs Table -->
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>Actor Staff ID</th>
+                                            <th>Action</th>
+                                            <th>Entity Type</th>
+                                            <th>Entity ID</th>
+                                            <th>Description</th>
+                                            <th>Changes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="audit-logs-table-body">
+                                        <tr><td colspan="7" class="text-center text-muted p-4">Loading audit logs...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer pagination-row">
+                            <div class="pagination-info" id="audit-page-info">Showing page 1</div>
+                            <div class="pagination-controls">
+                                <button class="btn btn-outline btn-xs" id="btn-audit-prev" onclick="changeAuditPage(-1)">&laquo; Prev</button>
+                                <button class="btn btn-outline btn-xs" id="btn-audit-next" onclick="changeAuditPage(1)">Next &raquo;</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 11: COLLEGES (Admin only)
+                     ======================================================= -->
+                <section id="view-colleges" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">Institutions &amp; Colleges</h2>
+                            <p class="view-subtitle">Colleges and institutional umbrellas hosting laboratories</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadColleges()">
+                                <span>&#128259;</span> Refresh
+                            </button>
+                            <button class="btn btn-primary btn-sm admin-only" onclick="openCollegeModal()">
+                                <span>+</span> Add College
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="college-feedback" class="feedback-msg" style="display:none;"></div>
+
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>College Name</th>
+                                            <th>Email</th>
+                                            <th>Phone</th>
+                                            <th>Address</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="college-table-body">
+                                        <tr><td colspan="6" class="text-center text-muted p-4">Loading colleges...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- =======================================================
+                     VIEW 12: SYSTEM HEALTH DIAGNOSTICS (Admin only)
+                     ======================================================= -->
+                <section id="view-diagnostics" class="route-view">
+                    <div class="view-header">
+                        <div>
+                            <h2 class="view-title">System Health &amp; Diagnostics</h2>
+                            <p class="view-subtitle">Spring Boot actuator status, MySQL database pool connectivity, and latency monitoring</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-primary btn-sm" onclick="checkHealth()">
+                                <span>&#129514;</span> Run Health Check
+                            </button>
+                            <a href="/api/health" target="_blank" class="btn btn-secondary btn-sm">
+                                Open Raw Health API JSON &rarr;
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-icon-box bg-emerald">
+                                <span id="backend-status-indicator" class="indicator-dot loading"></span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">Backend Application</span>
+                                <span class="kpi-value" id="backend-status-text">Checking...</span>
+                                <span class="kpi-meta" id="backend-app-name">calibrate-sys core</span>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-icon-box bg-blue">
+                                <span id="db-status-indicator" class="indicator-dot loading"></span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">MySQL Database</span>
+                                <span class="kpi-value" id="db-status-text">Checking...</span>
+                                <span class="kpi-meta" id="db-details-text">Validating pool</span>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-icon-box bg-slate">
+                                <span>&#9201;</span>
+                            </div>
+                            <div class="kpi-details">
+                                <span class="kpi-label">API Latency</span>
+                                <span class="kpi-value" id="api-latency-text">-- ms</span>
+                                <span class="kpi-meta" id="last-ping-time">Last ping: --</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden JSON Viewer preserved for backward compatibility -->
+                    <div style="display:none;"><pre id="json-viewer"></pre></div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+
+    <!-- ===================================================================
+         MODALS (Add / Edit / Detail dialogs)
+         =================================================================== -->
+
+    <!-- Modal: Add / Edit Laboratory -->
+    <div id="lab-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="lab-modal-title">Add Laboratory</h3>
+                <button type="button" class="modal-close-btn" onclick="closeLabModal()">&times;</button>
             </div>
-        </section>
-
-        <section class="management-grid">
-            <!-- College Management Panel -->
-            <div class="panel">
-                <div class="panel-header-row">
-                    <h3>College Management</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="loadColleges()">Refresh List</button>
-                </div>
-                
-                <form id="college-form" onsubmit="saveCollege(event)" class="crud-form">
-                    <input type="hidden" id="college-id">
-                    <div class="form-row">
-                        <input type="text" id="college-code" class="form-control" placeholder="Code (e.g. ENG-01)" required>
-                        <input type="text" id="college-name" class="form-control" placeholder="College Name" required>
-                    </div>
-                    <div class="form-row">
-                        <input type="text" id="college-address" class="form-control" placeholder="Address">
-                        <input type="email" id="college-email" class="form-control" placeholder="Contact Email">
-                        <input type="text" id="college-phone" class="form-control" placeholder="Contact Phone">
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-college-save" class="btn btn-primary">Save College</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetCollegeForm()">Cancel / Reset</button>
-                    </div>
-                </form>
-
-                <div id="college-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Code</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Labs</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="college-table-body">
-                            <tr><td colspan="6" class="text-center">Authenticate to load colleges</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Laboratory Management Panel -->
-            <div class="panel">
-                <div class="panel-header-row">
-                    <h3>Laboratory Management</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="loadLaboratories()">Refresh List</button>
-                </div>
-
-                <form id="lab-form" onsubmit="saveLaboratory(event)" class="crud-form">
+            <form id="lab-form" onsubmit="saveLaboratory(event)">
+                <div class="modal-body">
                     <input type="hidden" id="lab-id">
-                    <div class="form-row">
-                        <select id="lab-college-select" class="form-control" required>
+                    <div class="form-group">
+                        <label for="lab-college-select">College *</label>
+                        <select id="lab-college-select" class="form-select" required>
                             <option value="">-- Select College --</option>
                         </select>
-                        <input type="text" id="lab-code" class="form-control" placeholder="Lab Code (e.g. LAB-PHY-01)" required>
                     </div>
                     <div class="form-row">
-                        <input type="text" id="lab-name" class="form-control" placeholder="Laboratory Name" required>
-                        <input type="text" id="lab-department" class="form-control" placeholder="Department" required>
+                        <div class="form-group col-md-6">
+                            <label for="lab-name">Laboratory Name *</label>
+                            <input type="text" id="lab-name" class="form-control" placeholder="e.g. Physics Research Lab" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="lab-code">Laboratory Code *</label>
+                            <input type="text" id="lab-code" class="form-control" placeholder="e.g. LAB-PHY-01" required>
+                        </div>
                     </div>
                     <div class="form-row">
-                        <input type="text" id="lab-location" class="form-control" placeholder="Location / Room">
-                        <select id="lab-status" class="form-control">
+                        <div class="form-group col-md-6">
+                            <label for="lab-department">Department *</label>
+                            <input type="text" id="lab-department" class="form-control" placeholder="e.g. Physics" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="lab-location">Building &amp; Room</label>
+                            <input type="text" id="lab-location" class="form-control" placeholder="e.g. Science Block, Room 302">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="lab-status">Status</label>
+                        <select id="lab-status" class="form-select">
                             <option value="ACTIVE">ACTIVE</option>
                             <option value="INACTIVE">INACTIVE</option>
-                            <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
+                            <option value="MAINTENANCE">MAINTENANCE</option>
                         </select>
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-lab-save" class="btn btn-primary">Save Laboratory</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetLabForm()">Cancel / Reset</button>
-                    </div>
-                </form>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <select id="filter-college" class="form-control form-control-sm" onchange="loadLaboratories()">
-                        <option value="">All Colleges</option>
-                    </select>
-                    <select id="filter-status" class="form-control form-control-sm" onchange="loadLaboratories()">
-                        <option value="">All Statuses</option>
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="INACTIVE">INACTIVE</option>
-                        <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
-                    </select>
                 </div>
-
-                <div id="lab-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Code</th>
-                                <th>Name</th>
-                                <th>College</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lab-table-body">
-                            <tr><td colspan="6" class="text-center">Authenticate to load laboratories</td></tr>
-                        </tbody>
-                    </table>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeLabModal()">Cancel</button>
+                    <button type="submit" id="btn-lab-save" class="btn btn-primary">Save Laboratory</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add / Edit Staff -->
+    <div id="staff-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="staff-modal-title">Register New Staff</h3>
+                <button type="button" class="modal-close-btn" onclick="closeStaffModal()">&times;</button>
             </div>
-        </section>
-
-        <!-- Step 5: Staff Management & Laboratory Assignments -->
-        <section class="management-grid">
-            <!-- Staff Management Panel -->
-            <div class="panel">
-                <div class="panel-header-row">
-                    <h3>Staff Management</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="loadStaff()">Refresh List</button>
-                </div>
-
-                <form id="staff-form" onsubmit="saveStaff(event)" class="crud-form">
+            <form id="staff-form" onsubmit="saveStaff(event)">
+                <div class="modal-body">
                     <input type="hidden" id="staff-db-id">
                     <div class="form-row">
-                        <input type="text" id="staff-code" class="form-control" placeholder="Staff ID (e.g. STF-001)" required>
-                        <input type="text" id="staff-firstname" class="form-control" placeholder="First Name" required>
-                        <input type="text" id="staff-lastname" class="form-control" placeholder="Last Name" required>
+                        <div class="form-group col-md-6">
+                            <label for="staff-firstname">First Name *</label>
+                            <input type="text" id="staff-firstname" class="form-control" placeholder="John" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="staff-lastname">Last Name *</label>
+                            <input type="text" id="staff-lastname" class="form-control" placeholder="Doe" required>
+                        </div>
                     </div>
                     <div class="form-row">
-                        <input type="email" id="staff-email" class="form-control" placeholder="Email Address" required>
-                        <input type="text" id="staff-phone" class="form-control" placeholder="Phone (optional)">
-                        <input type="password" id="staff-password" class="form-control" placeholder="Password (required on create)">
+                        <div class="form-group col-md-6">
+                            <label for="staff-code">Staff ID *</label>
+                            <input type="text" id="staff-code" class="form-control" placeholder="STF-001" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="staff-email">Institutional Email *</label>
+                            <input type="email" id="staff-email" class="form-control" placeholder="john.doe@calibratesys.edu" required>
+                        </div>
+                    </div>
+                    <div class="form-group" id="staff-password-group">
+                        <label for="staff-password">Initial Password *</label>
+                        <input type="password" id="staff-password" class="form-control" placeholder="••••••••">
                     </div>
                     <div class="form-row">
-                        <input type="text" id="staff-designation" class="form-control" placeholder="Designation (e.g. Lab Technician)" required>
-                        <input type="text" id="staff-department" class="form-control" placeholder="Department" required>
-                        <select id="staff-system-role" class="form-control">
-                            <option value="LAB_STAFF">LAB_STAFF</option>
-                            <option value="ADMIN">ADMIN</option>
-                        </select>
-                        <select id="staff-status" class="form-control">
-                            <option value="ACTIVE">ACTIVE</option>
+                        <div class="form-group col-md-6">
+                            <label for="staff-designation">Designation *</label>
+                            <input type="text" id="staff-designation" class="form-control" placeholder="Lab Technician" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="staff-department">Department *</label>
+                            <input type="text" id="staff-department" class="form-control" placeholder="Physics" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="staff-phone">Phone</label>
+                            <input type="text" id="staff-phone" class="form-control" placeholder="+91-9876543210">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="staff-system-role">System Role *</label>
+                            <select id="staff-system-role" class="form-select" required>
+                                <option value="LAB_STAFF" selected>LAB_STAFF</option>
+                                <option value="ADMIN">ADMIN</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="staff-status">Staff Status</label>
+                        <select id="staff-status" class="form-select">
+                            <option value="ACTIVE" selected>ACTIVE</option>
                             <option value="INACTIVE">INACTIVE</option>
+                            <option value="SUSPENDED">SUSPENDED</option>
                         </select>
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-staff-save" class="btn btn-primary">Save Staff</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetStaffForm()">Cancel / Reset</button>
-                    </div>
-                </form>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <input type="text" id="filter-staff-dept" class="form-control form-control-sm" placeholder="Filter by Department" oninput="loadStaff()">
-                    <select id="filter-staff-status" class="form-control form-control-sm" onchange="loadStaff()">
-                        <option value="">All Statuses</option>
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="INACTIVE">INACTIVE</option>
-                    </select>
                 </div>
-
-                <div id="staff-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Staff ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Dept</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Labs</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="staff-table-body">
-                            <tr><td colspan="8" class="text-center">Authenticate to load staff</td></tr>
-                        </tbody>
-                    </table>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeStaffModal()">Cancel</button>
+                    <button type="submit" id="btn-staff-save" class="btn btn-primary">Save Staff Member</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: View Staff Laboratory Assignments -->
+    <div id="staff-labs-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3 id="staff-labs-title">Staff Laboratory Assignments</h3>
+                <button type="button" class="modal-close-btn" onclick="closeStaffLabsModal()">&times;</button>
             </div>
-
-            <!-- Laboratory Staff Assignment Panel -->
-            <div class="panel">
-                <div class="panel-header-row">
-                    <h3>Laboratory Staff Assignment</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="loadSelectedLabAssignments()">Refresh Assignments</button>
-                </div>
-
-                <div class="form-row">
-                    <select id="assign-lab-select" class="form-control" onchange="onAssignLabSelected()">
-                        <option value="">-- Choose Laboratory to Manage Assignments --</option>
-                    </select>
-                </div>
-
-                <form id="assignment-form" onsubmit="saveAssignment(event)" class="crud-form" style="margin-top: 1rem;">
-                    <div class="form-row">
-                        <select id="assign-staff-select" class="form-control" required>
-                            <option value="">-- Select Staff Member --</option>
-                        </select>
-                        <select id="assign-role-select" class="form-control" required>
-                            <option value="PRIMARY_INCHARGE">PRIMARY_INCHARGE</option>
-                            <option value="LAB_TECHNICIAN" selected>LAB_TECHNICIAN</option>
-                            <option value="SAFETY_OFFICER">SAFETY_OFFICER</option>
-                            <option value="CALIBRATION_COORDINATOR">CALIBRATION_COORDINATOR</option>
-                            <option value="STAFF">STAFF</option>
-                        </select>
-                    </div>
-                    <div class="form-row" style="align-items: center;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer;">
-                            <input type="checkbox" id="assign-primary-contact"> Primary In-Charge / Contact
-                        </label>
-                        <select id="assign-status-select" class="form-control">
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="INACTIVE">INACTIVE</option>
-                        </select>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-assign-save" class="btn btn-primary">Assign / Update Staff</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetAssignmentForm()">Reset Form</button>
-                    </div>
-                </form>
-
-                <div id="assignment-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Staff</th>
-                                <th>Email</th>
-                                <th>Role in Lab</th>
-                                <th>Primary Contact</th>
-                                <th>Assignment Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="assignment-table-body">
-                            <tr><td colspan="6" class="text-center">Select a laboratory above to view assignments</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Staff Laboratories Modal -->
-        <div id="staff-labs-modal" class="modal" style="display: none;">
-            <div class="modal-content panel">
-                <div class="panel-header-row">
-                    <h3 id="staff-labs-title">Staff Assigned Laboratories</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="closeStaffLabsModal()">&times; Close</button>
-                </div>
-                <div class="table-container" style="margin-top: 1rem;">
+            <div class="modal-body p-0">
+                <div class="table-responsive">
                     <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Lab Code</th>
-                                <th>Lab Name</th>
+                                <th>Laboratory Name</th>
                                 <th>Role in Lab</th>
                                 <th>Primary Contact</th>
                                 <th>Status</th>
@@ -576,52 +1658,68 @@
                             </tr>
                         </thead>
                         <tbody id="staff-labs-table-body">
-                            <tr><td colspan="6" class="text-center">Loading assignments...</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted p-4">Loading assignments...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeStaffLabsModal()">Close</button>
+            </div>
         </div>
+    </div>
 
-        <!-- Step 6: Laboratory Equipment Management -->
-        <section class="management-grid">
-            <div class="panel" style="grid-column: 1 / -1;">
-                <div class="panel-header-row">
-                    <h3>Laboratory Equipment Inventory</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="loadEquipment()">Refresh Equipment List</button>
-                </div>
-
-                <form id="equipment-form" onsubmit="saveEquipment(event)" class="crud-form">
+    <!-- Modal: Add / Edit Equipment -->
+    <div id="equipment-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3 id="equipment-modal-title">Register Equipment</h3>
+                <button type="button" class="modal-close-btn" onclick="closeEquipmentModal()">&times;</button>
+            </div>
+            <form id="equipment-form" onsubmit="saveEquipment(event)">
+                <div class="modal-body">
                     <input type="hidden" id="equipment-id">
                     <div class="form-row">
-                        <select id="equipment-lab-select" class="form-control" required>
-                            <option value="">-- Select Laboratory --</option>
-                        </select>
-                        <input type="text" id="equipment-asset-tag" class="form-control" placeholder="Asset Tag (e.g. AST-001)" required>
-                        <input type="text" id="equipment-serial" class="form-control" placeholder="Serial Number (optional)">
+                        <div class="form-group col-md-6">
+                            <label for="equipment-lab-select">Assigned Laboratory *</label>
+                            <select id="equipment-lab-select" class="form-select" required>
+                                <option value="">-- Select Laboratory --</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="equipment-asset-tag">Asset Tag *</label>
+                            <input type="text" id="equipment-asset-tag" class="form-control" placeholder="e.g. AST-PHY-001" required>
+                        </div>
                     </div>
                     <div class="form-row">
-                        <input type="text" id="equipment-name" class="form-control" placeholder="Equipment Name (e.g. Analytical Balance)" required>
-                        <input type="text" id="equipment-model" class="form-control" placeholder="Model Number (e.g. AB-204)">
-                        <input type="text" id="equipment-manufacturer" class="form-control" placeholder="Manufacturer (e.g. Mettler Toledo)">
+                        <div class="form-group col-md-6">
+                            <label for="equipment-name">Equipment Name *</label>
+                            <input type="text" id="equipment-name" class="form-control" placeholder="e.g. Digital Storage Oscilloscope" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="equipment-serial">Serial Number *</label>
+                            <input type="text" id="equipment-serial" class="form-control" placeholder="e.g. DSO-98421-X" required>
+                        </div>
                     </div>
                     <div class="form-row">
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Purchase Date</label>
-                            <input type="date" id="equipment-purchase-date" class="form-control">
+                        <div class="form-group col-md-6">
+                            <label for="equipment-manufacturer">Manufacturer *</label>
+                            <input type="text" id="equipment-manufacturer" class="form-control" placeholder="e.g. Tektronix" required>
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Installation Date</label>
-                            <input type="date" id="equipment-installation-date" class="form-control">
+                        <div class="form-group col-md-6">
+                            <label for="equipment-model">Model *</label>
+                            <input type="text" id="equipment-model" class="form-control" placeholder="e.g. TBS1104" required>
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Cal. Frequency (Days)</label>
-                            <input type="number" id="equipment-frequency" class="form-control" placeholder="Frequency (Days, e.g. 90)" min="1" required value="90">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="equipment-frequency">Calibration Frequency (Days) *</label>
+                            <input type="number" id="equipment-frequency" class="form-control" placeholder="e.g. 180" min="1" max="1825" required>
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Equipment Status</label>
-                            <select id="equipment-status" class="form-control">
-                                <option value="OPERATIONAL">OPERATIONAL</option>
+                        <div class="form-group col-md-6">
+                            <label for="equipment-status">Operational Status</label>
+                            <select id="equipment-status" class="form-select">
+                                <option value="OPERATIONAL" selected>OPERATIONAL</option>
                                 <option value="CALIBRATION_DUE">CALIBRATION_DUE</option>
                                 <option value="OUT_OF_CALIBRATION">OUT_OF_CALIBRATION</option>
                                 <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
@@ -629,93 +1727,64 @@
                             </select>
                         </div>
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-equipment-save" class="btn btn-primary">Save Equipment</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetEquipmentForm()">Cancel / Reset</button>
-                    </div>
-                </form>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <select id="filter-equipment-lab" class="form-control form-control-sm" onchange="loadEquipment()">
-                        <option value="">All Laboratories</option>
-                    </select>
-                    <select id="filter-equipment-status" class="form-control form-control-sm" onchange="loadEquipment()">
-                        <option value="">All Statuses</option>
-                        <option value="OPERATIONAL">OPERATIONAL</option>
-                        <option value="CALIBRATION_DUE">CALIBRATION_DUE</option>
-                        <option value="OUT_OF_CALIBRATION">OUT_OF_CALIBRATION</option>
-                        <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
-                        <option value="DECOMMISSIONED">DECOMMISSIONED</option>
-                    </select>
-                    <input type="text" id="filter-equipment-search" class="form-control form-control-sm" placeholder="Search by name, tag, serial..." oninput="loadEquipment()">
-                </div>
-
-                <div id="equipment-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Asset Tag</th>
-                                <th>Name &amp; Model</th>
-                                <th>Manufacturer</th>
-                                <th>Serial Number</th>
-                                <th>Laboratory</th>
-                                <th>Cal. Freq</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="equipment-table-body">
-                            <tr><td colspan="8" class="text-center">Authenticate to load equipment</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Step 7: Calibration Scheduling & Due-Date Management -->
-        <section class="management-grid">
-            <div class="panel" style="grid-column: 1 / -1;">
-                <div class="panel-header-row">
-                    <h3>Calibration Scheduling &amp; Due-Date Management</h3>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="filterSchedulesByQuickCategory('ALL')">All</button>
-                        <button class="btn btn-secondary btn-sm" onclick="filterSchedulesByQuickCategory('UPCOMING')">Upcoming</button>
-                        <button class="btn btn-secondary btn-sm" onclick="filterSchedulesByQuickCategory('DUE')">Due Today</button>
-                        <button class="btn btn-secondary btn-sm" onclick="filterSchedulesByQuickCategory('OVERDUE')">Overdue</button>
-                        <button class="btn btn-secondary btn-sm" onclick="loadSchedules()">Refresh Schedules</button>
-                    </div>
-                </div>
-
-                <form id="schedule-form" onsubmit="saveSchedule(event)" class="crud-form">
-                    <input type="hidden" id="schedule-id">
                     <div class="form-row">
-                        <select id="schedule-equipment-select" class="form-control" required>
-                            <option value="">-- Select Equipment --</option>
+                        <div class="form-group col-md-6">
+                            <label for="equipment-installation-date">Installation Date</label>
+                            <input type="date" id="equipment-installation-date" class="form-control">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="equipment-purchase-date">Purchase Date</label>
+                            <input type="date" id="equipment-purchase-date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEquipmentModal()">Cancel</button>
+                    <button type="submit" id="btn-equipment-save" class="btn btn-primary">Save Equipment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add / Edit Calibration Schedule -->
+    <div id="schedule-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="schedule-modal-title">Schedule Calibration</h3>
+                <button type="button" class="modal-close-btn" onclick="closeScheduleModal()">&times;</button>
+            </div>
+            <form id="schedule-form" onsubmit="saveSchedule(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="schedule-id">
+                    <div class="form-group">
+                        <label for="schedule-equipment-select">Equipment *</label>
+                        <select id="schedule-equipment-select" class="form-select" required>
+                            <option value="">-- Choose Equipment --</option>
                         </select>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Scheduled Date</label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="schedule-date">Scheduled Date *</label>
                             <input type="date" id="schedule-date" class="form-control" required>
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Due Date</label>
+                        <div class="form-group col-md-6">
+                            <label for="schedule-due-date">Due Date *</label>
                             <input type="date" id="schedule-due-date" class="form-control" required>
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Priority</label>
-                            <select id="schedule-priority" class="form-control" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="schedule-priority">Priority</label>
+                            <select id="schedule-priority" class="form-select">
                                 <option value="LOW">LOW</option>
                                 <option value="MEDIUM" selected>MEDIUM</option>
                                 <option value="HIGH">HIGH</option>
                                 <option value="CRITICAL">CRITICAL</option>
                             </select>
                         </div>
-                        <div id="schedule-status-group" style="flex: 1; display: none;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Status</label>
-                            <select id="schedule-status-select" class="form-control">
-                                <option value="">Auto (Date-Driven)</option>
+                        <div class="form-group col-md-6" id="schedule-status-group" style="display:none;">
+                            <label for="schedule-status-select">Status</label>
+                            <select id="schedule-status-select" class="form-select">
                                 <option value="SCHEDULED">SCHEDULED</option>
                                 <option value="UPCOMING">UPCOMING</option>
                                 <option value="DUE">DUE</option>
@@ -725,634 +1794,227 @@
                             </select>
                         </div>
                     </div>
-                    <div class="form-row">
-                        <input type="text" id="schedule-remarks" class="form-control" placeholder="Remarks / Calibration Notes (e.g. Semi-annual balance verification)">
+                    <div class="form-group">
+                        <label for="schedule-remarks">Remarks</label>
+                        <textarea id="schedule-remarks" class="form-control" rows="2" placeholder="e.g. Standard bi-annual calibration"></textarea>
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-schedule-save" class="btn btn-primary">Create Schedule</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetScheduleForm()">Cancel / Reset</button>
-                    </div>
-                </form>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <select id="filter-schedule-lab" class="form-control form-control-sm" onchange="loadSchedules()">
-                        <option value="">All Laboratories</option>
-                    </select>
-                    <select id="filter-schedule-equipment" class="form-control form-control-sm" onchange="loadSchedules()">
-                        <option value="">All Equipment</option>
-                    </select>
-                    <select id="filter-schedule-status" class="form-control form-control-sm" onchange="loadSchedules()">
-                        <option value="">All Statuses</option>
-                        <option value="SCHEDULED">SCHEDULED</option>
-                        <option value="UPCOMING">UPCOMING</option>
-                        <option value="DUE">DUE</option>
-                        <option value="OVERDUE">OVERDUE</option>
-                        <option value="COMPLETED">COMPLETED</option>
-                        <option value="CANCELLED">CANCELLED</option>
-                    </select>
-                    <select id="filter-schedule-priority" class="form-control form-control-sm" onchange="loadSchedules()">
-                        <option value="">All Priorities</option>
-                        <option value="LOW">LOW</option>
-                        <option value="MEDIUM">MEDIUM</option>
-                        <option value="HIGH">HIGH</option>
-                        <option value="CRITICAL">CRITICAL</option>
-                    </select>
-                    <input type="date" id="filter-schedule-from" class="form-control form-control-sm" title="From Due Date" onchange="loadSchedules()">
-                    <input type="date" id="filter-schedule-to" class="form-control form-control-sm" title="To Due Date" onchange="loadSchedules()">
                 </div>
-
-                <div id="schedule-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Equipment</th>
-                                <th>Laboratory</th>
-                                <th>Scheduled Date</th>
-                                <th>Due Date</th>
-                                <th>Status</th>
-                                <th>Priority</th>
-                                <th>Remarks</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="schedule-table-body">
-                            <tr><td colspan="9" class="text-center">Authenticate to load calibration schedules</td></tr>
-                        </tbody>
-                    </table>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeScheduleModal()">Cancel</button>
+                    <button type="submit" id="btn-schedule-save" class="btn btn-primary">Save Schedule</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Record Calibration Event -->
+    <div id="record-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3>Record Calibration Event</h3>
+                <button type="button" class="modal-close-btn" onclick="closeRecordModal()">&times;</button>
             </div>
-        </section>
-
-        <!-- Step 8: Calibration Records & Calibration History -->
-        <section class="management-grid">
-            <div class="panel" style="grid-column: 1 / -1;">
-                <div class="panel-header-row">
-                    <h3>Calibration Records &amp; History</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="loadRecords()">Refresh Records</button>
-                </div>
-
-                <form id="record-form" onsubmit="saveRecord(event)" class="crud-form">
+            <form id="record-form" onsubmit="saveRecord(event)">
+                <div class="modal-body">
                     <div class="form-row">
-                        <select id="record-equipment-select" class="form-control" onchange="onRecordEquipmentChange()" required>
-                            <option value="">-- Select Equipment --</option>
-                        </select>
-                        <select id="record-schedule-select" class="form-control">
-                            <option value="">-- Optional Associated Schedule --</option>
-                        </select>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Calibration Date</label>
+                        <div class="form-group col-md-6">
+                            <label for="record-equipment-select">Equipment *</label>
+                            <select id="record-equipment-select" class="form-select" onchange="onRecordEquipmentChange()" required>
+                                <option value="">-- Choose Equipment --</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="record-schedule-select">Linked Schedule (Optional)</label>
+                            <select id="record-schedule-select" class="form-select">
+                                <option value="">-- No Schedule / Ad-hoc --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="record-calibration-date">Calibration Date *</label>
                             <input type="date" id="record-calibration-date" class="form-control" required>
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Next Due Date</label>
+                        <div class="form-group col-md-6">
+                            <label for="record-next-due-date">Next Calibration Due Date *</label>
                             <input type="date" id="record-next-due-date" class="form-control" required>
                         </div>
                     </div>
                     <div class="form-row">
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Calibration Method</label>
-                            <select id="record-type" class="form-control" required>
-                                <option value="INTERNAL">INTERNAL</option>
-                                <option value="EXTERNAL_VENDOR">EXTERNAL_VENDOR</option>
-                            </select>
-                        </div>
-                        <div style="flex: 2;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Calibrator / Vendor Name</label>
-                            <input type="text" id="record-calibrator-name" class="form-control" placeholder="e.g. Dr. Sarah Jenkins or XYZ Metrology Services" required>
-                        </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Calibration Result</label>
-                            <select id="record-result" class="form-control" required>
+                        <div class="form-group col-md-6">
+                            <label for="record-result">Calibration Result *</label>
+                            <select id="record-result" class="form-select" required>
                                 <option value="PASSED" selected>PASSED</option>
-                                <option value="PASSED_WITH_CONDITIONS">PASSED_WITH_CONDITIONS</option>
                                 <option value="FAILED">FAILED</option>
+                                <option value="PASSED_WITH_LIMITATIONS">PASSED_WITH_LIMITATIONS</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="record-type">Calibrated By Type *</label>
+                            <select id="record-type" class="form-select" required>
+                                <option value="INTERNAL" selected>INTERNAL Staff</option>
+                                <option value="EXTERNAL_VENDOR">EXTERNAL Vendor</option>
                             </select>
                         </div>
                     </div>
                     <div class="form-row">
-                        <input type="text" id="record-uncertainty" class="form-control" placeholder="Uncertainty Measurement (e.g. +/- 0.05 C or 0.1 mg)">
-                        <input type="text" id="record-standards" class="form-control" placeholder="Reference Standards Used (e.g. ISO/IEC 17025 Certified RTD)">
-                    </div>
-                    <div class="form-row">
-                        <input type="text" id="record-notes" class="form-control" placeholder="Calibration Notes & Observations">
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-record-save" class="btn btn-primary">Save Calibration Record</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetRecordForm()">Cancel / Reset</button>
-                    </div>
-                </form>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <select id="filter-record-lab" class="form-control form-control-sm" onchange="loadRecords()">
-                        <option value="">All Laboratories</option>
-                    </select>
-                    <select id="filter-record-equipment" class="form-control form-control-sm" onchange="loadRecords()">
-                        <option value="">All Equipment</option>
-                    </select>
-                    <select id="filter-record-result" class="form-control form-control-sm" onchange="loadRecords()">
-                        <option value="">All Results</option>
-                        <option value="PASSED">PASSED</option>
-                        <option value="PASSED_WITH_CONDITIONS">PASSED_WITH_CONDITIONS</option>
-                        <option value="FAILED">FAILED</option>
-                    </select>
-                    <select id="filter-record-type" class="form-control form-control-sm" onchange="loadRecords()">
-                        <option value="">All Types</option>
-                        <option value="INTERNAL">INTERNAL</option>
-                        <option value="EXTERNAL_VENDOR">EXTERNAL_VENDOR</option>
-                    </select>
-                    <input type="date" id="filter-record-from" class="form-control form-control-sm" title="From Calibration Date" onchange="loadRecords()">
-                    <input type="date" id="filter-record-to" class="form-control form-control-sm" title="To Calibration Date" onchange="loadRecords()">
-                </div>
-
-                <div id="record-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Equipment</th>
-                                <th>Laboratory</th>
-                                <th>Cal. Date</th>
-                                <th>Next Due Date</th>
-                                <th>Type</th>
-                                <th>Calibrator</th>
-                                <th>Result</th>
-                                <th>Standards / Uncertainty</th>
-                                <th>Notes</th>
-                            </tr>
-                        </thead>
-                        <tbody id="record-table-body">
-                            <tr><td colspan="10" class="text-center">Authenticate to load calibration records</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Step 9 Calibration Documents & Certificates Section -->
-        <section class="auth-section">
-            <div class="panel">
-                <div class="panel-header-with-action">
-                    <h3>Calibration Certificates &amp; Document Management</h3>
-                    <button class="btn btn-sm btn-secondary" onclick="loadDocuments()">Refresh Documents</button>
-                </div>
-                <p class="section-description">
-                    Securely manage and associate calibration certificates, supporting technical sheets, and reports with equipment and calibration records.
-                </p>
-
-                <!-- Document Upload Form (ADMIN only) -->
-                <form id="document-form" class="admin-only-form" onsubmit="uploadDocument(event)">
-                    <h4 id="doc-form-title">Upload Calibration Certificate / Document</h4>
-                    <div class="form-row">
-                        <select id="doc-equipment-id" class="form-control" required onchange="onDocEquipmentChange()">
-                            <option value="">-- Select Equipment (Required) * --</option>
-                        </select>
-                        <select id="doc-record-id" class="form-control">
-                            <option value="">-- Optional Calibration Record --</option>
-                        </select>
-                    </div>
-                    <div class="form-row">
-                        <input type="text" id="doc-name" class="form-control" placeholder="Document Name / Title (e.g. ISO-17025 Certificate) *" required maxlength="255">
-                        <input type="text" id="doc-cert-no" class="form-control" placeholder="Certificate Number (Optional)" maxlength="100">
-                    </div>
-                    <div class="form-row">
-                        <div class="form-field-group">
-                            <label for="doc-issue-date" class="form-label-sm">Issue Date:</label>
-                            <input type="date" id="doc-issue-date" class="form-control">
+                        <div class="form-group col-md-6">
+                            <label for="record-calibrator-name">Calibrator Name / Technician *</label>
+                            <input type="text" id="record-calibrator-name" class="form-control" placeholder="e.g. Dr. Rajesh Sharma" required>
                         </div>
-                        <div class="form-field-group">
-                            <label for="doc-valid-until" class="form-label-sm">Valid Until (Expiry):</label>
-                            <input type="date" id="doc-valid-until" class="form-control">
-                        </div>
-                        <div class="form-field-group">
-                            <label for="doc-file" class="form-label-sm">Certificate File (PDF, PNG, JPG - Max 10MB) *:</label>
-                            <input type="file" id="doc-file" class="form-control" accept=".pdf,.png,.jpg,.jpeg" required>
+                        <div class="form-group col-md-6">
+                            <label for="record-uncertainty">Measurement Uncertainty</label>
+                            <input type="text" id="record-uncertainty" class="form-control" placeholder="e.g. ±0.05% FS">
                         </div>
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" id="btn-doc-upload" class="btn btn-primary">Upload Document</button>
-                        <button type="button" class="btn btn-secondary" onclick="resetDocForm()">Cancel / Reset</button>
+                    <div class="form-group">
+                        <label for="record-standards">Reference Standards Used</label>
+                        <input type="text" id="record-standards" class="form-control" placeholder="e.g. Fluke 5500A Calibrator, ISO/IEC 17025">
                     </div>
-                </form>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <select id="filter-doc-equipment" class="form-control form-control-sm" onchange="loadDocuments()">
-                        <option value="">All Equipment</option>
-                    </select>
-                    <input type="text" id="filter-doc-cert-no" class="form-control form-control-sm" placeholder="Filter Certificate #" oninput="loadDocuments()">
-                    <input type="date" id="filter-doc-issue-start" class="form-control form-control-sm" title="Issue Date From" onchange="loadDocuments()">
-                    <input type="date" id="filter-doc-issue-end" class="form-control form-control-sm" title="Issue Date To" onchange="loadDocuments()">
-                </div>
-
-                <div id="doc-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Equipment</th>
-                                <th>Laboratory</th>
-                                <th>Cal. Record</th>
-                                <th>Document Name</th>
-                                <th>Certificate #</th>
-                                <th>Type / Size</th>
-                                <th>Issue Date</th>
-                                <th>Valid Until</th>
-                                <th>Status</th>
-                                <th>Uploaded At</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="document-table-body">
-                            <tr><td colspan="12" class="text-center">Authenticate to load documents</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Step 10 In-App Notifications & Calibration Alerts Section -->
-        <section id="notifications-section" class="auth-section">
-            <div class="panel">
-                <div class="panel-header-with-action">
-                    <h3>In-App Notifications &amp; Calibration Alerts</h3>
-                    <div class="panel-actions" style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-sm btn-primary admin-only-form" onclick="triggerCalibrationAlerts()">Trigger Alerts (Admin)</button>
-                        <button class="btn btn-sm btn-secondary" onclick="markAllNotificationsAsRead()">Mark All as Read</button>
-                        <button class="btn btn-sm btn-secondary" onclick="loadNotifications()">Refresh</button>
-                    </div>
-                </div>
-                <p class="section-description">
-                    Scoped notifications delivering calibration upcoming, due, and overdue alerts directly to responsible laboratory staff.
-                </p>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <select id="filter-notif-type" class="form-control form-control-sm" onchange="loadNotifications()">
-                        <option value="">All Alert Types</option>
-                        <option value="CALIBRATION_UPCOMING">CALIBRATION_UPCOMING</option>
-                        <option value="CALIBRATION_DUE">CALIBRATION_DUE</option>
-                        <option value="CALIBRATION_OVERDUE">CALIBRATION_OVERDUE</option>
-                        <option value="COMPLIANCE_ALERT">COMPLIANCE_ALERT</option>
-                        <option value="GENERAL_NOTICE">GENERAL_NOTICE</option>
-                    </select>
-                    <select id="filter-notif-priority" class="form-control form-control-sm" onchange="loadNotifications()">
-                        <option value="">All Priorities</option>
-                        <option value="HIGH">HIGH</option>
-                        <option value="MEDIUM">MEDIUM</option>
-                        <option value="LOW">LOW</option>
-                    </select>
-                    <select id="filter-notif-status" class="form-control form-control-sm" onchange="loadNotifications()">
-                        <option value="">All Statuses</option>
-                        <option value="false">Unread Only</option>
-                        <option value="true">Read Only</option>
-                    </select>
-                </div>
-
-                <div id="notif-feedback" class="feedback-msg"></div>
-
-                <div id="notifications-list-container" class="notifications-list" style="margin-top: 1rem;">
-                    <div class="text-center" style="padding: 1.5rem; color: var(--text-muted);">
-                        Authenticate to load your notifications
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Step 12 Centralized Audit Trail & Activity Logging Module -->
-        <section id="audit-logs-section" class="auth-section admin-only-section" style="display:none;">
-            <div class="panel">
-                <div class="panel-header-with-action">
-                    <h3>Audit Trail &amp; Activity Log</h3>
-                    <div class="header-action-group">
-                        <button class="btn btn-sm btn-secondary" onclick="loadAuditLogs()">Refresh Audit Trail</button>
-                    </div>
-                </div>
-                <p class="section-description">
-                    Immutable chronological record of administrative actions, authentication attempts, equipment mutations, and calibration events with before/after state diffs.
-                </p>
-
-                <div class="filter-bar">
-                    <span>Filters:</span>
-                    <select id="filter-audit-action" class="form-control form-control-sm" onchange="loadAuditLogs()">
-                        <option value="">All Actions</option>
-                        <option value="LOGIN_SUCCESS">LOGIN_SUCCESS</option>
-                        <option value="LOGIN_FAILURE">LOGIN_FAILURE</option>
-                        <option value="LOGOUT">LOGOUT</option>
-                        <option value="COLLEGE_CREATED">COLLEGE_CREATED</option>
-                        <option value="COLLEGE_UPDATED">COLLEGE_UPDATED</option>
-                        <option value="COLLEGE_DELETED">COLLEGE_DELETED</option>
-                        <option value="LABORATORY_CREATED">LABORATORY_CREATED</option>
-                        <option value="LABORATORY_UPDATED">LABORATORY_UPDATED</option>
-                        <option value="LABORATORY_DELETED">LABORATORY_DELETED</option>
-                        <option value="STAFF_CREATED">STAFF_CREATED</option>
-                        <option value="STAFF_UPDATED">STAFF_UPDATED</option>
-                        <option value="STAFF_DEACTIVATED">STAFF_DEACTIVATED</option>
-                        <option value="STAFF_DELETED">STAFF_DELETED</option>
-                        <option value="STAFF_ASSIGNED_TO_LAB">STAFF_ASSIGNED_TO_LAB</option>
-                        <option value="STAFF_LAB_ASSIGNMENT_UPDATED">STAFF_LAB_ASSIGNMENT_UPDATED</option>
-                        <option value="STAFF_UNASSIGNED_FROM_LAB">STAFF_UNASSIGNED_FROM_LAB</option>
-                        <option value="EQUIPMENT_CREATED">EQUIPMENT_CREATED</option>
-                        <option value="EQUIPMENT_UPDATED">EQUIPMENT_UPDATED</option>
-                        <option value="EQUIPMENT_DELETED">EQUIPMENT_DELETED</option>
-                        <option value="CALIBRATION_SCHEDULE_CREATED">CALIBRATION_SCHEDULE_CREATED</option>
-                        <option value="CALIBRATION_SCHEDULE_UPDATED">CALIBRATION_SCHEDULE_UPDATED</option>
-                        <option value="CALIBRATION_SCHEDULE_CANCELLED">CALIBRATION_SCHEDULE_CANCELLED</option>
-                        <option value="CALIBRATION_SCHEDULE_DELETED">CALIBRATION_SCHEDULE_DELETED</option>
-                        <option value="CALIBRATION_RECORD_CREATED">CALIBRATION_RECORD_CREATED</option>
-                        <option value="CALIBRATION_DOCUMENT_UPLOADED">CALIBRATION_DOCUMENT_UPLOADED</option>
-                        <option value="CALIBRATION_DOCUMENT_DELETED">CALIBRATION_DOCUMENT_DELETED</option>
-                        <option value="NOTIFICATION_MARKED_READ">NOTIFICATION_MARKED_READ</option>
-                        <option value="ALERT_GENERATION_TRIGGERED">ALERT_GENERATION_TRIGGERED</option>
-                    </select>
-
-                    <select id="filter-audit-entity-type" class="form-control form-control-sm" onchange="loadAuditLogs()">
-                        <option value="">All Entity Types</option>
-                        <option value="AUTH">AUTH</option>
-                        <option value="COLLEGE">COLLEGE</option>
-                        <option value="LABORATORY">LABORATORY</option>
-                        <option value="STAFF">STAFF</option>
-                        <option value="LABORATORY_STAFF">LABORATORY_STAFF</option>
-                        <option value="EQUIPMENT">EQUIPMENT</option>
-                        <option value="CALIBRATION_SCHEDULE">CALIBRATION_SCHEDULE</option>
-                        <option value="CALIBRATION_RECORD">CALIBRATION_RECORD</option>
-                        <option value="CALIBRATION_DOCUMENT">CALIBRATION_DOCUMENT</option>
-                        <option value="NOTIFICATION">NOTIFICATION</option>
-                    </select>
-
-                    <input type="date" id="filter-audit-from" class="form-control form-control-sm" title="From Date" onchange="loadAuditLogs()">
-                    <input type="date" id="filter-audit-to" class="form-control form-control-sm" title="To Date" onchange="loadAuditLogs()">
-                    <button class="btn btn-sm btn-secondary" onclick="resetAuditFilters()">Reset</button>
-                </div>
-
-                <div id="audit-feedback" class="feedback-msg"></div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Actor</th>
-                                <th>Action</th>
-                                <th>Entity</th>
-                                <th>Description</th>
-                                <th>IP Address</th>
-                                <th>Details &amp; Diff</th>
-                            </tr>
-                        </thead>
-                        <tbody id="audit-logs-table-body">
-                            <tr>
-                                <td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">
-                                    Log in as Administrator to view the immutable audit trail.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Pagination controls -->
-                <div id="audit-pagination" class="pagination-controls" style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem;">
-                    <span id="audit-page-info" style="font-size:0.85rem; color:var(--text-muted);">Page 1 of 1</span>
-                    <div>
-                        <button id="btn-audit-prev" class="btn btn-sm btn-secondary" onclick="changeAuditPage(-1)" disabled>&laquo; Previous</button>
-                        <button id="btn-audit-next" class="btn btn-sm btn-secondary" onclick="changeAuditPage(1)" disabled>Next &raquo;</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Audit Diff Viewer Modal -->
-        <div id="audit-diff-modal" class="modal-backdrop" style="display:none;">
-            <div class="modal-dialog">
-                <div class="modal-header">
-                    <h4 id="audit-diff-modal-title">Audit Event Details</h4>
-                    <button class="modal-close" onclick="closeAuditDiffModal()">&times;</button>
-                </div>
-                <div class="modal-body" id="audit-diff-modal-body">
-                    <div id="audit-modal-meta" style="margin-bottom:1rem; font-size:0.9rem;"></div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-                        <div>
-                            <h5 style="color:var(--text-muted); margin-bottom:0.5rem;">Previous State (oldValues)</h5>
-                            <pre class="diff-box diff-old"><code id="audit-modal-old-values">None</code></pre>
-                        </div>
-                        <div>
-                            <h5 style="color:var(--text-muted); margin-bottom:0.5rem;">New State (newValues)</h5>
-                            <pre class="diff-box diff-new"><code id="audit-modal-new-values">None</code></pre>
-                        </div>
+                    <div class="form-group">
+                        <label for="record-notes">Calibration Notes</label>
+                        <textarea id="record-notes" class="form-control" rows="2" placeholder="e.g. Calibration within permissible tolerance bounds"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeAuditDiffModal()">Close</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeRecordModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Calibration Record</button>
                 </div>
-            </div>
+            </form>
         </div>
+    </div>
 
-        <!-- Step 14: Reports, Export & Compliance Documentation Module -->
-        <section id="reports-compliance-section" class="auth-section" style="margin-top: 2rem;">
-            <div class="panel">
-                <div class="panel-header-with-action">
+    <!-- Modal: Upload Certificate Document -->
+    <div id="document-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Upload Calibration Certificate</h3>
+                <button type="button" class="modal-close-btn" onclick="closeDocumentModal()">&times;</button>
+            </div>
+            <form id="document-form" onsubmit="uploadDocument(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="doc-equipment-id">Equipment *</label>
+                        <select id="doc-equipment-id" class="form-select" onchange="onDocEquipmentChange()" required>
+                            <option value="">-- Choose Equipment --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="doc-record-id">Linked Calibration Record (Optional)</label>
+                        <select id="doc-record-id" class="form-select">
+                            <option value="">-- General Equipment Document --</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="doc-name">Document Title *</label>
+                            <input type="text" id="doc-name" class="form-control" placeholder="e.g. Calibration Certificate 2026" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="doc-cert-no">Certificate Number *</label>
+                            <input type="text" id="doc-cert-no" class="form-control" placeholder="e.g. CERT-2026-089" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="doc-issue-date">Issue Date *</label>
+                            <input type="date" id="doc-issue-date" class="form-control" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="doc-valid-until">Valid Until *</label>
+                            <input type="date" id="doc-valid-until" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="doc-file">Select Certificate File (PDF / PNG / JPEG) *</label>
+                        <input type="file" id="doc-file" class="form-control" accept=".pdf,.png,.jpg,.jpeg" required>
+                        <small class="form-hint">Maximum file size: 10MB</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeDocumentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload Document</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add / Edit College (Admin only) -->
+    <div id="college-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="college-modal-title">Add College</h3>
+                <button type="button" class="modal-close-btn" onclick="closeCollegeModal()">&times;</button>
+            </div>
+            <form id="college-form" onsubmit="saveCollege(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="college-id">
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="college-name">College Name *</label>
+                            <input type="text" id="college-name" class="form-control" placeholder="Institute of Science & Technology" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="college-code">College Code *</label>
+                            <input type="text" id="college-code" class="form-control" placeholder="IST-01" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="college-email">Contact Email</label>
+                            <input type="email" id="college-email" class="form-control" placeholder="admin@ist.edu">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="college-phone">Phone</label>
+                            <input type="text" id="college-phone" class="form-control" placeholder="+91-1234567890">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="college-address">Campus Address</label>
+                        <input type="text" id="college-address" class="form-control" placeholder="Main Campus, Bangalore">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeCollegeModal()">Cancel</button>
+                    <button type="submit" id="btn-college-save" class="btn btn-primary">Save College</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Audit Log Diff Viewer -->
+    <div id="audit-diff-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3 id="audit-diff-modal-title">Audit State Change Inspection</h3>
+                <button type="button" class="modal-close-btn" onclick="closeAuditDiffModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="audit-modal-meta" class="audit-meta-summary"></div>
+                <div class="diff-two-col" style="margin-top: 1rem;">
                     <div>
-                        <h3>Reports, Export &amp; Compliance Documentation</h3>
-                        <p class="section-description" style="margin-top:0.25rem;">
-                            Generate operational reports, analyze upcoming and overdue calibration due-dates, review laboratory inventory and staff assignments, and securely export data to RFC-4180 compliant CSV.
-                        </p>
+                        <h4 class="diff-header text-danger">Previous State</h4>
+                        <pre id="audit-modal-old-values" class="diff-code-box">None</pre>
                     </div>
-                    <div class="header-action-group">
-                        <button class="btn btn-sm report-export-btn" id="btn-export-report-csv" onclick="exportCurrentReportCsv()">
-                            <span>&#128190;</span> Export CSV
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Category Tabs -->
-                <div class="reports-category-tabs">
-                    <button class="report-tab-btn active" id="tab-cat-calibration" onclick="switchReportCategory('calibration')">Calibration Reports</button>
-                    <button class="report-tab-btn" id="tab-cat-inventory" onclick="switchReportCategory('inventory')">Inventory &amp; Labs</button>
-                    <button class="report-tab-btn" id="tab-cat-compliance" onclick="switchReportCategory('compliance')">Compliance Attention</button>
-                </div>
-
-                <!-- Report Selection Cards: Calibration -->
-                <div id="report-cards-calibration" class="report-cards-container">
-                    <div class="report-selection-card active" data-report-type="calibration-status" onclick="selectReportType('calibration-status', this)">
-                        <div class="report-card-title">&#128203; Calibration Status</div>
-                        <div class="report-card-desc">Current condition, latest calibration results, and next due dates across equipment.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="upcoming-calibrations" onclick="selectReportType('upcoming-calibrations', this)">
-                        <div class="report-card-title">&#9200; Upcoming Calibrations</div>
-                        <div class="report-card-desc">Schedules approaching their calibration due date within the upcoming window.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="due-calibrations" onclick="selectReportType('due-calibrations', this)">
-                        <div class="report-card-title">&#9888; Due Today</div>
-                        <div class="report-card-desc">Schedules where calibration is due today for assigned laboratories.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="overdue-calibrations" onclick="selectReportType('overdue-calibrations', this)">
-                        <div class="report-card-title">&#9940; Overdue Calibrations</div>
-                        <div class="report-card-desc">Schedules past their calibration due date requiring urgent attention.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="calibration-history" onclick="selectReportType('calibration-history', this)">
-                        <div class="report-card-title">&#128214; Calibration History</div>
-                        <div class="report-card-desc">Historical calibration records, calibrators, standards used, and uncertainty measurements.</div>
-                    </div>
-                </div>
-
-                <!-- Report Selection Cards: Inventory -->
-                <div id="report-cards-inventory" class="report-cards-container" style="display:none;">
-                    <div class="report-selection-card" data-report-type="equipment" onclick="selectReportType('equipment', this)">
-                        <div class="report-card-title">&#128295; Equipment Inventory</div>
-                        <div class="report-card-desc">Full equipment inventory with asset tags, serial numbers, manufacturers, and status.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="laboratories" onclick="selectReportType('laboratories', this)">
-                        <div class="report-card-title">&#127979; Laboratory Summary</div>
-                        <div class="report-card-desc">Laboratory profiles with total equipment, active staff counts, and attention required.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="staff-assignments" onclick="selectReportType('staff-assignments', this)">
-                        <div class="report-card-title">&#128101; Staff Assignments</div>
-                        <div class="report-card-desc">Staff-to-laboratory assignments, primary contacts, and laboratory roles.</div>
-                    </div>
-                </div>
-
-                <!-- Report Selection Cards: Compliance -->
-                <div id="report-cards-compliance" class="report-cards-container" style="display:none;">
-                    <div class="report-selection-card" data-report-type="compliance-attention" onclick="selectReportType('compliance-attention', this)">
-                        <div class="report-card-title">&#9888; All Attention Items</div>
-                        <div class="report-card-desc">Consolidated operational attention: overdue, due today, failed calibrations, and expired certs.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="expired-certificates" onclick="selectReportType('expired-certificates', this)">
-                        <div class="report-card-title">&#128196; Expired Certificates</div>
-                        <div class="report-card-desc">Calibration documents whose certificate validity has expired.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="failed-calibrations" onclick="selectReportType('failed-calibrations', this)">
-                        <div class="report-card-title">&#10060; Failed Calibrations</div>
-                        <div class="report-card-desc">Equipment with recent failed calibration records requiring review.</div>
-                    </div>
-                    <div class="report-selection-card" data-report-type="out-of-calibration" onclick="selectReportType('out-of-calibration', this)">
-                        <div class="report-card-title">&#128683; Out-of-Calibration</div>
-                        <div class="report-card-desc">Equipment currently marked with OUT_OF_CALIBRATION status.</div>
-                    </div>
-                </div>
-
-                <!-- Dynamic Filter Panel -->
-                <div class="report-filter-panel" id="report-filter-panel">
-                    <div class="report-filter-group" id="filter-group-lab">
-                        <label for="report-filter-lab">Laboratory</label>
-                        <select id="report-filter-lab" class="form-control form-control-sm">
-                            <option value="">All Permitted Labs</option>
-                        </select>
-                    </div>
-
-                    <div class="report-filter-group" id="filter-group-date-from">
-                        <label for="report-filter-from">From Date</label>
-                        <input type="date" id="report-filter-from" class="form-control form-control-sm">
-                    </div>
-
-                    <div class="report-filter-group" id="filter-group-date-to">
-                        <label for="report-filter-to">To Date</label>
-                        <input type="date" id="report-filter-to" class="form-control form-control-sm">
-                    </div>
-
-                    <div class="report-filter-group" id="filter-group-equip-status">
-                        <label for="report-filter-equip-status">Equipment Status</label>
-                        <select id="report-filter-equip-status" class="form-control form-control-sm">
-                            <option value="">All Statuses</option>
-                            <option value="OPERATIONAL">OPERATIONAL</option>
-                            <option value="CALIBRATION_DUE">CALIBRATION_DUE</option>
-                            <option value="OUT_OF_CALIBRATION">OUT_OF_CALIBRATION</option>
-                            <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
-                            <option value="DECOMMISSIONED">DECOMMISSIONED</option>
-                        </select>
-                    </div>
-
-                    <div class="report-filter-group" id="filter-group-priority" style="display:none;">
-                        <label for="report-filter-priority">Priority</label>
-                        <select id="report-filter-priority" class="form-control form-control-sm">
-                            <option value="">All Priorities</option>
-                            <option value="CRITICAL">CRITICAL</option>
-                            <option value="HIGH">HIGH</option>
-                            <option value="MEDIUM">MEDIUM</option>
-                            <option value="LOW">LOW</option>
-                        </select>
-                    </div>
-
-                    <div class="report-filter-group" id="filter-group-result" style="display:none;">
-                        <label for="report-filter-result">Calibration Result</label>
-                        <select id="report-filter-result" class="form-control form-control-sm">
-                            <option value="">All Results</option>
-                            <option value="PASSED">PASSED</option>
-                            <option value="FAILED">FAILED</option>
-                            <option value="PASSED_WITH_LIMITATIONS">PASSED_WITH_LIMITATIONS</option>
-                        </select>
-                    </div>
-
-                    <div class="report-filter-group" id="filter-group-calibrator-type" style="display:none;">
-                        <label for="report-filter-calibrator-type">Calibrator Type</label>
-                        <select id="report-filter-calibrator-type" class="form-control form-control-sm">
-                            <option value="">All Types</option>
-                            <option value="INTERNAL">INTERNAL</option>
-                            <option value="EXTERNAL_VENDOR">EXTERNAL_VENDOR</option>
-                        </select>
-                    </div>
-
-                    <div class="report-filter-actions">
-                        <button class="btn btn-sm btn-primary" onclick="applyReportFilters()">Apply Filters</button>
-                        <button class="btn btn-sm btn-secondary" onclick="resetReportFilters()">Reset Filters</button>
-                    </div>
-                </div>
-
-                <div id="report-feedback" class="feedback-msg"></div>
-
-                <!-- Report Results Table Container -->
-                <div class="table-responsive">
-                    <table class="data-table" id="report-data-table">
-                        <thead id="report-table-head">
-                            <!-- Populated dynamically based on selected report -->
-                        </thead>
-                        <tbody id="report-table-body">
-                            <tr>
-                                <td colspan="10" class="text-center" style="padding: 2rem; color: var(--text-muted);">
-                                    Select a report and click Apply Filters to load data.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Report Pagination Bar -->
-                <div id="report-pagination-bar" class="pagination-bar" style="display:none;">
-                    <div class="pagination-info" id="report-pagination-info">Showing 0 records</div>
-                    <div class="pagination-controls">
-                        <button class="page-btn" id="btn-report-prev" onclick="changeReportPage(-1)">&laquo; Prev</button>
-                        <span id="report-page-current" style="padding: 0 0.5rem; font-weight: 600;">1</span>
-                        <button class="page-btn" id="btn-report-next" onclick="changeReportPage(1)">Next &raquo;</button>
+                    <div>
+                        <h4 class="diff-header text-success">Updated State</h4>
+                        <pre id="audit-modal-new-values" class="diff-code-box">None</pre>
                     </div>
                 </div>
             </div>
-        </section>
-
-        <!-- Raw JSON Payload Section -->
-        <section class="details-section">
-            <div class="panel">
-                <h3>Last API Response Log</h3>
-                <div class="code-container">
-                    <pre><code id="json-viewer">Ready for requests...</code></pre>
-                </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAuditDiffModal()">Close</button>
             </div>
-        </section>
-    </main>
-
-    <footer class="app-footer">
-        <div class="footer-container">
-            <p>Smart Laboratory Equipment Calibration & Compliance Management System &copy; 2026. Step 12: Centralized Audit Trail & Activity Logging Module.</p>
         </div>
-    </footer>
+    </div>
 
+
+    <!-- ===================================================================
+         FLOATING TOAST CONTAINER (Non-intrusive feedback notifications)
+         =================================================================== -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Application JavaScript Client -->
     <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,10 +1,508 @@
 /**
- * CalibrateSys Step 4 Frontend Client
- * Handles live health check, JWT login, and College & Laboratory management.
+ * SmartLab: Laboratory Equipment Calibration & Compliance Management System
+ * Production Client Application Logic
  */
 
 let authToken = sessionStorage.getItem('jwtToken') || '';
 let currentUser = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
+let currentRoute = 'dashboard';
+
+// -------------------------------------------------------------
+// Toast Notification System
+// -------------------------------------------------------------
+function showToast(message, type = 'info', title = '') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    let icon = '&#8505;';
+    if (type === 'success') icon = '&#10003;';
+    else if (type === 'error') icon = '&#9888;';
+    else if (type === 'warning') icon = '&#9889;';
+
+    let displayTitle = title;
+    if (!displayTitle) {
+        if (type === 'success') displayTitle = 'Success';
+        else if (type === 'error') displayTitle = 'Error';
+        else if (type === 'warning') displayTitle = 'Warning';
+        else displayTitle = 'Information';
+    }
+
+    toast.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <div class="toast-content">
+            <div class="toast-title">${escapeHtml(displayTitle)}</div>
+            <div class="toast-message">${escapeHtml(message)}</div>
+        </div>
+        <button type="button" class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(40px)';
+        setTimeout(() => toast.remove(), 250);
+    }, 4500);
+}
+
+// -------------------------------------------------------------
+// Utilities & Human-Friendly Display Formatters
+// -------------------------------------------------------------
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function safeSetJson(data) {
+    const jsonViewer = document.getElementById('json-viewer');
+    if (jsonViewer) {
+        try {
+            jsonViewer.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        } catch (_) {
+            jsonViewer.textContent = String(data);
+        }
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    try {
+        const parts = String(dateStr).split('-');
+        if (parts.length === 3) {
+            const y = Number(parts[0]);
+            const m = Number(parts[1]) - 1;
+            const d = Number(parts[2]);
+            const dateObj = new Date(y, m, d);
+            if (!isNaN(dateObj.getTime())) {
+                return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+        }
+        const parsed = new Date(dateStr);
+        if (isNaN(parsed.getTime())) return dateStr;
+        return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (_) {
+        return dateStr;
+    }
+}
+
+function formatDateTime(dateTimeStr) {
+    if (!dateTimeStr) return '—';
+    try {
+        const d = new Date(dateTimeStr);
+        if (isNaN(d.getTime())) return dateTimeStr;
+        return d.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (_) {
+        return dateTimeStr;
+    }
+}
+
+function formatStatusLabel(status) {
+    if (!status) return '—';
+    const map = {
+        'OPERATIONAL': 'Operational',
+        'CALIBRATION_DUE': 'Calibration Due',
+        'OUT_OF_CALIBRATION': 'Out of Calibration',
+        'UNDER_MAINTENANCE': 'Under Maintenance',
+        'DECOMMISSIONED': 'Decommissioned',
+        'SCHEDULED': 'Scheduled',
+        'UPCOMING': 'Upcoming',
+        'DUE': 'Due Today',
+        'OVERDUE': 'Overdue',
+        'COMPLETED': 'Completed',
+        'CANCELLED': 'Cancelled',
+        'ACTIVE': 'Active',
+        'INACTIVE': 'Inactive',
+        'VALID': 'Valid',
+        'EXPIRING_SOON': 'Expiring Soon',
+        'EXPIRED': 'Expired'
+    };
+    return map[status] || status.replace(/_/g, ' ');
+}
+
+function formatStatusBadge(status) {
+    if (!status) return '<span class="status-pill status-loading">—</span>';
+    const s = String(status).toUpperCase();
+    const label = formatStatusLabel(s);
+    let cssClass = 'status-loading';
+    switch (s) {
+        case 'OPERATIONAL':
+        case 'ACTIVE':
+        case 'COMPLETED':
+        case 'VALID':
+            cssClass = 'status-online';
+            break;
+        case 'CALIBRATION_DUE':
+        case 'DUE':
+        case 'UPCOMING':
+        case 'EXPIRING_SOON':
+        case 'UNDER_MAINTENANCE':
+            cssClass = 'status-warning';
+            break;
+        case 'OUT_OF_CALIBRATION':
+        case 'OVERDUE':
+        case 'EXPIRED':
+        case 'FAILED':
+        case 'DECOMMISSIONED':
+        case 'INACTIVE':
+            cssClass = 'status-degraded';
+            break;
+        case 'SCHEDULED':
+        case 'CANCELLED':
+            cssClass = 'status-neutral';
+            break;
+    }
+    return `<span class="status-pill ${cssClass}">${escapeHtml(label)}</span>`;
+}
+
+function formatPriorityBadge(priority) {
+    if (!priority) return '—';
+    const p = String(priority).toUpperCase();
+    const map = {
+        'CRITICAL': { label: 'Critical', cls: 'badge-priority-critical' },
+        'HIGH': { label: 'High', cls: 'badge-priority-high' },
+        'MEDIUM': { label: 'Medium', cls: 'badge-priority-medium' },
+        'LOW': { label: 'Low', cls: 'badge-priority-low' }
+    };
+    const info = map[p] || { label: priority, cls: 'badge-priority-medium' };
+    return `<span class="badge-priority ${info.cls}">${escapeHtml(info.label)}</span>`;
+}
+
+function formatResultBadge(result) {
+    if (!result) return '—';
+    const r = String(result).toUpperCase();
+    if (r === 'PASSED') {
+        return '<span class="badge-result badge-result-passed">Passed</span>';
+    } else if (r === 'FAILED') {
+        return '<span class="badge-result badge-result-failed">Failed</span>';
+    } else if (r.includes('LIMITATION') || r.includes('CONDITION')) {
+        return '<span class="badge-result badge-result-passed_with_limitations">Passed (Limitations)</span>';
+    }
+    return `<span class="badge-result">${escapeHtml(result.replace(/_/g, ' '))}</span>`;
+}
+
+function formatRole(role) {
+    if (!role) return '—';
+    const map = {
+        'ADMIN': 'System Administrator',
+        'LAB_STAFF': 'Laboratory Staff',
+        'STAFF': 'Staff Member',
+        'PRIMARY_INCHARGE': 'Primary In-Charge',
+        'LAB_TECHNICIAN': 'Lab Technician',
+        'CALIBRATION_COORDINATOR': 'Calibration Coordinator',
+        'SAFETY_OFFICER': 'Safety Officer'
+    };
+    return map[role] || role.replace(/_/g, ' ');
+}
+
+function formatNotificationType(type) {
+    if (!type) return 'General Notification';
+    const map = {
+        'CALIBRATION_UPCOMING': 'Upcoming Calibration',
+        'CALIBRATION_DUE': 'Calibration Due Today',
+        'CALIBRATION_OVERDUE': 'Overdue Calibration',
+        'CALIBRATION_COMPLETED': 'Calibration Completed',
+        'COMPLIANCE_ALERT': 'Compliance Alert',
+        'GENERAL_NOTICE': 'Notice'
+    };
+    return map[type] || type.replace(/_/g, ' ');
+}
+
+function formatCalibratorType(type) {
+    if (!type) return '—';
+    if (type === 'INTERNAL') return 'Internal Staff';
+    if (type === 'EXTERNAL_VENDOR') return 'External Vendor';
+    return type.replace(/_/g, ' ');
+}
+
+function formatNullable(val, fallback = '—') {
+    if (val === null || val === undefined || val === '') return fallback;
+    return val;
+}
+
+// -------------------------------------------------------------
+// Navigation & SPA Routing
+// -------------------------------------------------------------
+function navigateTo(route) {
+    if (!authToken) {
+        route = 'login';
+    }
+
+    // Role-based route protection
+    if ((route === 'staff' || route === 'audit' || route === 'colleges' || route === 'diagnostics') && currentUser && currentUser.role !== 'ADMIN') {
+        showToast('Access restricted to Administrators', 'warning', 'Permission Required');
+        route = 'dashboard';
+    }
+
+    currentRoute = route;
+    if (route !== 'login') {
+        window.location.hash = '#/' + route;
+    }
+
+    // Hide all views
+    document.querySelectorAll('.route-view').forEach(view => {
+        view.classList.remove('active');
+    });
+
+    // Update active nav item
+    document.querySelectorAll('.nav-item').forEach(item => {
+        if (item.getAttribute('data-route') === route) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+
+    // Show selected view
+    const targetView = document.getElementById(`view-${route}`);
+    if (targetView) {
+        targetView.classList.add('active');
+    }
+
+    closeSidebar();
+    closeUserDropdown();
+
+    // Trigger data loading for view
+    if (authToken) {
+        switch (route) {
+            case 'dashboard':
+                loadDashboard();
+                break;
+            case 'laboratories':
+                loadLaboratories();
+                break;
+            case 'staff':
+                loadStaff();
+                populateAssignLabDropdown();
+                populateAssignStaffDropdown();
+                break;
+            case 'equipment':
+                loadEquipment();
+                populateEquipmentLabDropdown();
+                break;
+            case 'schedules':
+                loadSchedules();
+                populateScheduleLabDropdown();
+                populateScheduleEquipmentDropdown();
+                break;
+            case 'records':
+                loadRecords();
+                populateRecordDropdowns();
+                break;
+            case 'documents':
+                loadDocuments();
+                populateDocDropdowns();
+                break;
+            case 'notifications':
+                loadNotifications();
+                break;
+            case 'reports':
+                initReportsUI();
+                populateReportLabFilter();
+                loadCurrentReport();
+                break;
+            case 'audit':
+                loadAuditLogs();
+                break;
+            case 'colleges':
+                loadColleges();
+                break;
+            case 'diagnostics':
+                checkHealth();
+                break;
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// Sidebar, User Menu & Password Helpers
+// -------------------------------------------------------------
+function toggleSidebar() {
+    const sidebar = document.getElementById('app-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar) sidebar.classList.toggle('open');
+    if (backdrop) backdrop.classList.toggle('open');
+}
+
+function closeSidebar() {
+    const sidebar = document.getElementById('app-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar) sidebar.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('open');
+}
+
+function toggleUserDropdown() {
+    const menu = document.getElementById('user-dropdown-menu');
+    if (menu) {
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function closeUserDropdown() {
+    const menu = document.getElementById('user-dropdown-menu');
+    if (menu) menu.style.display = 'none';
+}
+
+function togglePasswordVisibility() {
+    const pwdInput = document.getElementById('auth-password');
+    const btn = document.getElementById('toggle-password-btn');
+    if (pwdInput) {
+        if (pwdInput.type === 'password') {
+            pwdInput.type = 'text';
+            if (btn) btn.innerHTML = '&#128064;';
+        } else {
+            pwdInput.type = 'password';
+            if (btn) btn.innerHTML = '&#128065;';
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// Modal Open / Close Helpers
+// -------------------------------------------------------------
+function openLabModal(lab) {
+    resetLabForm();
+    const title = document.getElementById('lab-modal-title');
+    if (lab) {
+        if (title) title.textContent = 'Edit Laboratory';
+        editLaboratory(lab);
+    } else {
+        if (title) title.textContent = 'Add Laboratory';
+    }
+    const modal = document.getElementById('lab-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeLabModal() {
+    const modal = document.getElementById('lab-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function openStaffModal(staff) {
+    resetStaffForm();
+    const title = document.getElementById('staff-modal-title');
+    if (staff) {
+        if (title) title.textContent = 'Edit Staff Member';
+        editStaff(staff);
+    } else {
+        if (title) title.textContent = 'Register New Staff';
+    }
+    const modal = document.getElementById('staff-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeStaffModal() {
+    const modal = document.getElementById('staff-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function openEquipmentModal(eq) {
+    resetEquipmentForm();
+    if (!labsCache || labsCache.length === 0) {
+        await loadLaboratories();
+    } else {
+        populateEquipmentLabDropdown();
+    }
+    const title = document.getElementById('equipment-modal-title');
+    if (eq) {
+        if (title) title.textContent = 'Edit Equipment';
+        await editEquipment(eq);
+    } else {
+        if (title) title.textContent = 'Register Equipment';
+    }
+    const modal = document.getElementById('equipment-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeEquipmentModal() {
+    const modal = document.getElementById('equipment-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function openScheduleModal(sch) {
+    resetScheduleForm();
+    if (!labsCache || labsCache.length === 0) {
+        await loadLaboratories();
+    } else {
+        populateScheduleLabDropdown();
+    }
+    if (!equipmentCache || equipmentCache.length === 0) {
+        await loadEquipment();
+    } else {
+        populateScheduleEquipmentDropdown();
+    }
+    const title = document.getElementById('schedule-modal-title');
+    if (sch) {
+        if (title) title.textContent = 'Edit Calibration Schedule';
+        await editSchedule(sch);
+    } else {
+        if (title) title.textContent = 'Schedule Calibration';
+    }
+    const modal = document.getElementById('schedule-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeScheduleModal() {
+    const modal = document.getElementById('schedule-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function openRecordModal() {
+    resetRecordForm();
+    if (!equipmentCache || equipmentCache.length === 0) {
+        await loadEquipment();
+    } else {
+        populateRecordDropdowns();
+    }
+    const modal = document.getElementById('record-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeRecordModal() {
+    const modal = document.getElementById('record-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function openDocumentModal() {
+    resetDocForm();
+    if (!equipmentCache || equipmentCache.length === 0) {
+        await loadEquipment();
+    } else {
+        populateDocDropdowns();
+    }
+    const modal = document.getElementById('document-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeDocumentModal() {
+    const modal = document.getElementById('document-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function openCollegeModal(col) {
+    resetCollegeForm();
+    const title = document.getElementById('college-modal-title');
+    if (col) {
+        if (title) title.textContent = 'Edit College';
+        editCollege(col);
+    } else {
+        if (title) title.textContent = 'Add College';
+    }
+    const modal = document.getElementById('college-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeCollegeModal() {
+    const modal = document.getElementById('college-modal');
+    if (modal) modal.style.display = 'none';
+}
 
 // -------------------------------------------------------------
 // Health Monitoring
@@ -23,63 +521,71 @@ async function checkHealth() {
     const pingTime = document.getElementById('last-ping-time');
     const jsonViewer = document.getElementById('json-viewer');
 
-    headerPill.className = 'status-pill status-loading';
-    headerPill.textContent = 'Checking...';
-    backendDot.className = 'indicator-dot loading';
-    dbDot.className = 'indicator-dot loading';
+    if (headerPill) {
+        headerPill.className = 'status-pill status-loading';
+        headerPill.textContent = 'Checking...';
+    }
+    if (backendDot) backendDot.className = 'indicator-dot loading';
+    if (dbDot) dbDot.className = 'indicator-dot loading';
 
     const startTime = performance.now();
 
     try {
         const response = await fetch('/api/health');
         const elapsed = Math.round(performance.now() - startTime);
-        latencyText.textContent = `${elapsed} ms`;
-        pingTime.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
+        if (latencyText) latencyText.textContent = `${elapsed} ms`;
+        if (pingTime) pingTime.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
 
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 
         const data = await response.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        if (jsonViewer) jsonViewer.textContent = JSON.stringify(data, null, 2);
 
         if (data.status === 'UP') {
-            backendDot.className = 'indicator-dot online';
-            backendText.textContent = 'Operational';
+            if (backendDot) backendDot.className = 'indicator-dot online';
+            if (backendText) backendText.textContent = 'Operational';
         } else {
-            backendDot.className = 'indicator-dot loading';
-            backendText.textContent = data.status || 'Degraded';
+            if (backendDot) backendDot.className = 'indicator-dot loading';
+            if (backendText) backendText.textContent = data.status || 'Degraded';
         }
-        backendMeta.textContent = data.application || 'CalibrateSys Core';
+        if (backendMeta) backendMeta.textContent = data.application || 'SmartLab Core';
 
         if (data.databaseStatus === 'CONNECTED') {
-            dbDot.className = 'indicator-dot online';
-            dbText.textContent = 'Connected';
+            if (dbDot) dbDot.className = 'indicator-dot online';
+            if (dbText) dbText.textContent = 'Connected';
             const dbProduct = data.details?.databaseProduct || 'MySQL';
             const dbVersion = data.details?.databaseVersion || '';
-            dbMeta.textContent = `${dbProduct} ${dbVersion}`.trim();
+            if (dbMeta) dbMeta.textContent = `${dbProduct} ${dbVersion}`.trim();
         } else {
-            dbDot.className = 'indicator-dot offline';
-            dbText.textContent = data.databaseStatus || 'Disconnected';
-            dbMeta.textContent = data.details?.databaseError || 'Check DB configuration';
+            if (dbDot) dbDot.className = 'indicator-dot offline';
+            if (dbText) dbText.textContent = data.databaseStatus || 'Disconnected';
+            if (dbMeta) dbMeta.textContent = data.details?.databaseError || 'Check DB configuration';
         }
 
         if (data.status === 'UP' && data.databaseStatus === 'CONNECTED') {
-            headerPill.className = 'status-pill status-online';
-            headerPill.textContent = 'System Healthy';
+            if (headerPill) {
+                headerPill.className = 'status-pill status-online';
+                headerPill.textContent = 'System Healthy';
+            }
         } else {
-            headerPill.className = 'status-pill status-degraded';
-            headerPill.textContent = 'System Degraded';
+            if (headerPill) {
+                headerPill.className = 'status-pill status-degraded';
+                headerPill.textContent = 'System Degraded';
+            }
         }
     } catch (err) {
         const elapsed = Math.round(performance.now() - startTime);
-        latencyText.textContent = `${elapsed} ms`;
-        pingTime.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
+        if (latencyText) latencyText.textContent = `${elapsed} ms`;
+        if (pingTime) pingTime.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
 
-        headerPill.className = 'status-pill status-offline';
-        headerPill.textContent = 'Backend Offline';
-        backendDot.className = 'indicator-dot offline';
-        backendText.textContent = 'Offline';
-        dbDot.className = 'indicator-dot offline';
-        dbText.textContent = 'Unknown';
+        if (headerPill) {
+            headerPill.className = 'status-pill status-offline';
+            headerPill.textContent = 'Backend Offline';
+        }
+        if (backendDot) backendDot.className = 'indicator-dot offline';
+        if (backendText) backendText.textContent = 'Offline';
+        if (dbDot) dbDot.className = 'indicator-dot offline';
+        if (dbText) dbText.textContent = 'Unknown';
     }
 }
 
@@ -87,15 +593,29 @@ async function checkHealth() {
 // Authentication
 // -------------------------------------------------------------
 async function login() {
-    const identifier = document.getElementById('auth-identifier').value.trim();
-    const password = document.getElementById('auth-password').value;
+    const identifierInput = document.getElementById('auth-identifier');
+    const passwordInput = document.getElementById('auth-password');
     const feedback = document.getElementById('auth-feedback');
+    const errAlert = document.getElementById('login-error-alert');
+    const errText = document.getElementById('login-error-text');
+    const btnText = document.getElementById('login-btn-text');
+    const spinner = document.getElementById('login-spinner');
     const jsonViewer = document.getElementById('json-viewer');
 
+    if (errAlert) errAlert.style.display = 'none';
+
+    const identifier = identifierInput ? identifierInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
+
     if (!identifier || !password) {
-        showFeedback(feedback, 'Please enter email/staff ID and password', false);
+        if (errText) errText.textContent = 'Please enter email/staff ID and password';
+        if (errAlert) errAlert.style.display = 'flex';
+        showToast('Please enter both email/staff ID and password', 'warning', 'Required Fields');
         return;
     }
+
+    if (btnText) btnText.textContent = 'Authenticating...';
+    if (spinner) spinner.style.display = 'inline-block';
 
     try {
         const res = await fetch('/api/auth/login', {
@@ -105,7 +625,7 @@ async function login() {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        if (jsonViewer) jsonViewer.textContent = JSON.stringify(data, null, 2);
 
         if (!res.ok) {
             throw new Error(data.message || `Login failed (HTTP ${res.status})`);
@@ -116,23 +636,16 @@ async function login() {
         sessionStorage.setItem('jwtToken', authToken);
         sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
 
-        showFeedback(feedback, `Logged in successfully as ${data.fullName} (${data.role})`, true);
+        showToast(`Welcome back, ${data.fullName || 'User'}!`, 'success', 'Signed In');
         updateAuthUI();
-        loadDashboard();
-        loadColleges();
-        loadLaboratories();
-        loadStaff();
-        loadEquipment();
-        loadSchedules();
-        loadRecords();
-        loadDocuments();
-        loadNotifications();
-        updateUnreadCount();
-        if (currentUser && currentUser.role === 'ADMIN') {
-            loadAuditLogs();
-        }
+        navigateTo('dashboard');
     } catch (err) {
-        showFeedback(feedback, err.message, false);
+        if (errText) errText.textContent = err.message || 'Login failed';
+        if (errAlert) errAlert.style.display = 'flex';
+        showToast(err.message || 'Authentication error', 'error', 'Login Failed');
+    } finally {
+        if (btnText) btnText.textContent = 'Sign In';
+        if (spinner) spinner.style.display = 'none';
     }
 }
 
@@ -142,24 +655,29 @@ function logout() {
     sessionStorage.removeItem('jwtToken');
     sessionStorage.removeItem('currentUser');
     updateAuthUI();
-    showFeedback(document.getElementById('auth-feedback'), 'Logged out. Token cleared.', true);
+    showToast('You have been signed out successfully.', 'info', 'Signed Out');
     resetDashboardUI();
-    document.getElementById('college-table-body').innerHTML = '<tr><td colspan="6" class="text-center">Authenticate to load colleges</td></tr>';
-    document.getElementById('lab-table-body').innerHTML = '<tr><td colspan="6" class="text-center">Authenticate to load laboratories</td></tr>';
-    document.getElementById('staff-table-body').innerHTML = '<tr><td colspan="8" class="text-center">Authenticate to load staff</td></tr>';
-    document.getElementById('assignment-table-body').innerHTML = '<tr><td colspan="6" class="text-center">Select a laboratory above to view assignments</td></tr>';
-    document.getElementById('equipment-table-body').innerHTML = '<tr><td colspan="8" class="text-center">Authenticate to load equipment</td></tr>';
-    document.getElementById('schedule-table-body').innerHTML = '<tr><td colspan="9" class="text-center">Authenticate to load calibration schedules</td></tr>';
-    document.getElementById('record-table-body').innerHTML = '<tr><td colspan="10" class="text-center">Authenticate to load calibration records</td></tr>';
-    document.getElementById('document-table-body').innerHTML = '<tr><td colspan="12" class="text-center">Authenticate to load documents</td></tr>';
+
+    const collegeTb = document.getElementById('college-table-body');
+    if (collegeTb) collegeTb.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-4">Authenticate to load colleges</td></tr>';
+    const labTb = document.getElementById('lab-table-body');
+    if (labTb) labTb.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-4">Authenticate to load laboratories</td></tr>';
+    const staffTb = document.getElementById('staff-table-body');
+    if (staffTb) staffTb.innerHTML = '<tr><td colspan="8" class="text-center text-muted p-4">Authenticate to load staff</td></tr>';
+    const assignTb = document.getElementById('assignment-table-body');
+    if (assignTb) assignTb.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-4">Select a laboratory above to view assignments</td></tr>';
+    const equipTb = document.getElementById('equipment-table-body');
+    if (equipTb) equipTb.innerHTML = '<tr><td colspan="8" class="text-center text-muted p-4">Authenticate to load equipment</td></tr>';
+    const schedTb = document.getElementById('schedule-table-body');
+    if (schedTb) schedTb.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-4">Authenticate to load calibration schedules</td></tr>';
+    const recTb = document.getElementById('record-table-body');
+    if (recTb) recTb.innerHTML = '<tr><td colspan="9" class="text-center text-muted p-4">Authenticate to load calibration records</td></tr>';
+    const docTb = document.getElementById('document-table-body');
+    if (docTb) docTb.innerHTML = '<tr><td colspan="8" class="text-center text-muted p-4">Authenticate to load documents</td></tr>';
     const auditTable = document.getElementById('audit-logs-table-body');
-    if (auditTable) {
-        auditTable.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Log in as Administrator to view the immutable audit trail.</td></tr>';
-    }
+    if (auditTable) auditTable.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-4">Log in as Administrator to view the audit trail.</td></tr>';
     const notifContainer = document.getElementById('notifications-list-container');
-    if (notifContainer) {
-        notifContainer.innerHTML = '<div class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Authenticate to load your notifications</div>';
-    }
+    if (notifContainer) notifContainer.innerHTML = '<div class="empty-state-sm">Authenticate to load notifications</div>';
     const badge = document.getElementById('notif-badge');
     if (badge) {
         badge.textContent = '0';
@@ -168,24 +686,62 @@ function logout() {
 }
 
 function updateAuthUI() {
+    const loginView = document.getElementById('login-view');
+    const appShell = document.getElementById('app-shell');
     const pill = document.getElementById('auth-status-pill');
+
     if (authToken && currentUser) {
-        pill.className = 'status-pill status-online';
-        pill.textContent = `${currentUser.role}: ${currentUser.staffId}`;
-        const isAdmin = currentUser.role === 'ADMIN';
-        document.querySelectorAll('.admin-only-form').forEach(el => {
-            el.style.display = isAdmin ? 'block' : 'none';
+        if (loginView) loginView.style.display = 'none';
+        if (appShell) appShell.style.display = 'flex';
+
+        if (pill) {
+            pill.className = 'status-pill status-online';
+            pill.textContent = `${currentUser.role}: ${currentUser.staffId}`;
+        }
+
+        const nameEl = document.getElementById('header-user-name');
+        const roleEl = document.getElementById('header-user-role');
+        const avatarEl = document.getElementById('header-user-avatar');
+        const dropName = document.getElementById('dropdown-full-name');
+        const dropEmail = document.getElementById('dropdown-email');
+        const dropMeta = document.getElementById('dropdown-meta-info');
+
+        const fullName = currentUser.fullName || currentUser.username || 'User';
+        const role = currentUser.role || 'LAB_STAFF';
+        const email = currentUser.email || `${currentUser.username || 'user'}@calibratesys.edu`;
+
+        if (nameEl) nameEl.textContent = fullName;
+        if (roleEl) {
+            roleEl.textContent = role;
+            roleEl.className = `user-role-badge ${role === 'ADMIN' ? 'badge-admin' : 'badge-staff'}`;
+        }
+        if (avatarEl) {
+            const parts = fullName.split(' ');
+            const initials = parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : fullName.substring(0, 2).toUpperCase();
+            avatarEl.textContent = initials;
+        }
+        if (dropName) dropName.textContent = fullName;
+        if (dropEmail) dropEmail.textContent = email;
+        if (dropMeta) dropMeta.textContent = `Staff ID: ${currentUser.staffId} | Role: ${role}`;
+
+        const isAdmin = role === 'ADMIN';
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = isAdmin ? '' : 'none';
         });
-        document.querySelectorAll('.admin-only-section').forEach(el => {
-            el.style.display = isAdmin ? 'block' : 'none';
-        });
+
+        const welcomeMsg = document.getElementById('dashboard-welcome-msg');
+        if (welcomeMsg) {
+            welcomeMsg.textContent = `Welcome back, ${fullName}. Here is the real-time calibration compliance overview for your assigned laboratories.`;
+        }
+        updateUnreadCount();
     } else {
-        pill.className = 'status-pill status-loading';
-        pill.textContent = 'Not Authenticated';
-        document.querySelectorAll('.admin-only-form').forEach(el => {
-            el.style.display = 'none';
-        });
-        document.querySelectorAll('.admin-only-section').forEach(el => {
+        if (loginView) loginView.style.display = 'flex';
+        if (appShell) appShell.style.display = 'none';
+        if (pill) {
+            pill.className = 'status-pill status-loading';
+            pill.textContent = 'Not Authenticated';
+        }
+        document.querySelectorAll('.admin-only').forEach(el => {
             el.style.display = 'none';
         });
     }
@@ -230,7 +786,7 @@ async function loadColleges() {
     try {
         const res = await fetch('/api/colleges', { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch colleges (${res.status})`);
 
@@ -247,10 +803,10 @@ async function loadColleges() {
         data.forEach(c => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${c.id}</td>
+                <td><code>#${c.id}</code></td>
                 <td><strong>${escapeHtml(c.code)}</strong></td>
                 <td>${escapeHtml(c.name)}</td>
-                <td>${escapeHtml(c.contactEmail || '-')}</td>
+                <td>${escapeHtml(c.contactEmail || '—')}</td>
                 <td>${c.totalLaboratories || 0}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editCollege(${JSON.stringify(c)})'>Edit</button>
@@ -303,6 +859,7 @@ async function saveCollege(event) {
 
         showFeedback(feedback, `College ${id ? 'updated' : 'created'} successfully!`, true);
         resetCollegeForm();
+        closeCollegeModal();
         loadColleges();
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -317,6 +874,11 @@ function editCollege(c) {
     document.getElementById('college-email').value = c.contactEmail || '';
     document.getElementById('college-phone').value = c.contactPhone || '';
     document.getElementById('btn-college-save').textContent = 'Update College';
+    const modal = document.getElementById('college-modal');
+    if (modal) {
+        document.getElementById('college-modal-title').textContent = 'Edit College';
+        modal.style.display = 'flex';
+    }
 }
 
 function resetCollegeForm() {
@@ -369,7 +931,7 @@ async function loadLaboratories() {
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch laboratories (${res.status})`);
 
@@ -389,11 +951,11 @@ async function loadLaboratories() {
         data.forEach(l => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${l.id}</td>
+                <td><code>#${l.id}</code></td>
                 <td><strong>${escapeHtml(l.labCode)}</strong></td>
                 <td>${escapeHtml(l.name)} <br><small class="stat-meta">${escapeHtml(l.department)}</small></td>
-                <td>${escapeHtml(l.collegeCode || '-')}</td>
-                <td><span class="status-pill ${l.status === 'ACTIVE' ? 'status-online' : 'status-degraded'}">${l.status}</span></td>
+                <td>${escapeHtml(l.collegeCode || '—')}</td>
+                <td>${formatStatusBadge(l.status)}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editLaboratory(${JSON.stringify(l)})'>Edit</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteLaboratory(${l.id})">Delete</button>
@@ -444,6 +1006,7 @@ async function saveLaboratory(event) {
 
         showFeedback(feedback, `Laboratory ${id ? 'updated' : 'created'} successfully!`, true);
         resetLabForm();
+        closeLabModal();
         loadLaboratories();
         loadColleges(); // update lab count
     } catch (err) {
@@ -460,6 +1023,11 @@ function editLaboratory(l) {
     document.getElementById('lab-location').value = l.location || '';
     document.getElementById('lab-status').value = l.status || 'ACTIVE';
     document.getElementById('btn-lab-save').textContent = 'Update Laboratory';
+    const modal = document.getElementById('lab-modal');
+    if (modal) {
+        document.getElementById('lab-modal-title').textContent = 'Edit Laboratory';
+        modal.style.display = 'flex';
+    }
 }
 
 function resetLabForm() {
@@ -516,7 +1084,7 @@ async function loadStaff() {
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch staff (${res.status})`);
 
@@ -532,12 +1100,12 @@ async function loadStaff() {
         data.forEach(s => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><strong>${escapeHtml(s.staffId)}</strong></td>
-                <td>${escapeHtml(s.fullName)}<br><small class="stat-meta">${escapeHtml(s.designation)}</small></td>
+                <td><code>${escapeHtml(s.staffId)}</code></td>
+                <td><strong>${escapeHtml(s.fullName)}</strong><br><small class="stat-meta">${escapeHtml(s.designation || '—')}</small></td>
                 <td>${escapeHtml(s.email)}</td>
-                <td>${escapeHtml(s.department)}</td>
-                <td><span class="badge-role">${escapeHtml(s.systemRole)}</span></td>
-                <td><span class="status-pill ${s.status === 'ACTIVE' ? 'status-online' : 'status-degraded'}">${s.status}</span></td>
+                <td>${escapeHtml(s.department || '—')}</td>
+                <td><span class="badge-role">${formatRole(s.systemRole)}</span></td>
+                <td>${formatStatusBadge(s.status)}</td>
                 <td><button class="btn btn-secondary btn-sm" onclick="viewStaffLabs(${s.id}, '${escapeHtml(s.fullName)}')">${s.assignedLaboratoriesCount || 0} Labs</button></td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editStaff(${JSON.stringify(s)})'>Edit</button>
@@ -598,8 +1166,9 @@ async function saveStaff(event) {
 
         showFeedback(feedback, `Staff ${dbId ? 'updated' : 'created'} successfully!`, true);
         resetStaffForm();
+        closeStaffModal();
         loadStaff();
-        if (document.getElementById('assign-lab-select').value) {
+        if (document.getElementById('assign-lab-select') && document.getElementById('assign-lab-select').value) {
             loadSelectedLabAssignments();
         }
     } catch (err) {
@@ -620,6 +1189,13 @@ function editStaff(s) {
     document.getElementById('staff-system-role').value = s.systemRole || 'LAB_STAFF';
     document.getElementById('staff-status').value = s.status || 'ACTIVE';
     document.getElementById('btn-staff-save').textContent = 'Update Staff';
+    const pwdGroup = document.getElementById('staff-password-group');
+    if (pwdGroup) pwdGroup.style.display = 'none';
+    const modal = document.getElementById('staff-modal');
+    if (modal) {
+        document.getElementById('staff-modal-title').textContent = 'Edit Staff Member';
+        modal.style.display = 'flex';
+    }
 }
 
 async function toggleStaffStatus(id, currentStatus) {
@@ -999,15 +1575,14 @@ async function loadEquipment() {
 
         data.forEach(eq => {
             const tr = document.createElement('tr');
-            const statusClass = eq.status === 'OPERATIONAL' ? 'status-online' : 'status-degraded';
             tr.innerHTML = `
-                <td><strong>${escapeHtml(eq.assetTag)}</strong></td>
-                <td>${escapeHtml(eq.name)} <br><small class="stat-meta">${escapeHtml(eq.model || '-')}</small></td>
-                <td>${escapeHtml(eq.manufacturer || '-')}</td>
-                <td>${escapeHtml(eq.serialNumber || '-')}</td>
-                <td>${escapeHtml(eq.laboratoryCode || '')} <br><small class="stat-meta">${escapeHtml(eq.laboratoryName || '')}</small></td>
-                <td>${eq.calibrationFrequencyDays} days</td>
-                <td><span class="status-pill ${statusClass}">${eq.status}</span></td>
+                <td><code>${escapeHtml(eq.assetTag)}</code></td>
+                <td><strong>${escapeHtml(eq.name)}</strong> <br><small class="stat-meta">${escapeHtml(eq.modelNumber || eq.model || '—')}</small></td>
+                <td>${escapeHtml(eq.manufacturer || '—')}</td>
+                <td>${escapeHtml(eq.serialNumber || '—')}</td>
+                <td><strong>${escapeHtml(eq.laboratoryCode || '')}</strong> <br><small class="stat-meta">${escapeHtml(eq.laboratoryName || '')}</small></td>
+                <td>${eq.calibrationFrequencyDays || 90} days</td>
+                <td>${formatStatusBadge(eq.status)}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editEquipment(${JSON.stringify(eq)})'>Edit</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteEquipment(${eq.id}, '${escapeHtml(eq.assetTag)}')">Delete</button>
@@ -1034,7 +1609,6 @@ async function saveEquipment(event) {
     const frequencyVal = document.getElementById('equipment-frequency').value;
     const status = document.getElementById('equipment-status').value;
     const feedback = document.getElementById('equipment-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     if (!laboratoryIdVal) {
         showFeedback(feedback, 'Please select a laboratory', false);
@@ -1046,7 +1620,7 @@ async function saveEquipment(event) {
         assetTag,
         serialNumber: serialNumber || null,
         name,
-        model: model || null,
+        modelNumber: model || null,
         manufacturer: manufacturer || null,
         purchaseDate: purchaseDate || null,
         installationDate: installationDate || null,
@@ -1066,33 +1640,42 @@ async function saveEquipment(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Equipment save failed (${res.status})`);
 
         showFeedback(feedback, `Equipment "${data.name}" (${data.assetTag}) saved successfully!`, true);
         resetEquipmentForm();
+        closeEquipmentModal();
         loadEquipment();
     } catch (err) {
         showFeedback(feedback, err.message, false);
     }
 }
 
-function editEquipment(eq) {
+async function editEquipment(eq) {
+    if (!labsCache || labsCache.length === 0) {
+        await loadLaboratories();
+    } else {
+        populateEquipmentLabDropdown();
+    }
     document.getElementById('equipment-id').value = eq.id;
     document.getElementById('equipment-lab-select').value = eq.laboratoryId;
     document.getElementById('equipment-asset-tag').value = eq.assetTag;
     document.getElementById('equipment-serial').value = eq.serialNumber || '';
     document.getElementById('equipment-name').value = eq.name;
-    document.getElementById('equipment-model').value = eq.model || '';
+    document.getElementById('equipment-model').value = eq.modelNumber || eq.model || '';
     document.getElementById('equipment-manufacturer').value = eq.manufacturer || '';
     document.getElementById('equipment-purchase-date').value = eq.purchaseDate || '';
     document.getElementById('equipment-installation-date').value = eq.installationDate || '';
     document.getElementById('equipment-frequency').value = eq.calibrationFrequencyDays || 90;
     document.getElementById('equipment-status').value = eq.status || 'OPERATIONAL';
     document.getElementById('btn-equipment-save').textContent = 'Update Equipment';
-
-    document.getElementById('equipment-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const modal = document.getElementById('equipment-modal');
+    if (modal) {
+        document.getElementById('equipment-modal-title').textContent = 'Edit Equipment';
+        modal.style.display = 'flex';
+    }
 }
 
 function resetEquipmentForm() {
@@ -1186,12 +1769,21 @@ function populateScheduleLabDropdown() {
     }
 }
 
-function filterSchedulesByQuickCategory(category) {
+function filterSchedulesByQuickCategory(category, btnEl) {
     const statusSelect = document.getElementById('filter-schedule-status');
     if (category === 'ALL') {
         if (statusSelect) statusSelect.value = '';
     } else {
         if (statusSelect) statusSelect.value = category;
+    }
+    if (btnEl) {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            const oc = b.getAttribute('onclick') || '';
+            if (oc.includes('filterSchedulesByQuickCategory')) {
+                b.classList.remove('active');
+            }
+        });
+        btnEl.classList.add('active');
     }
     loadSchedules();
 }
@@ -1205,7 +1797,6 @@ async function loadSchedules() {
     const priority = document.getElementById('filter-schedule-priority')?.value;
     const fromDate = document.getElementById('filter-schedule-from')?.value;
     const toDate = document.getElementById('filter-schedule-to')?.value;
-    const jsonViewer = document.getElementById('json-viewer');
 
     let url = '/api/calibration-schedules?';
     if (labId) url += `laboratoryId=${encodeURIComponent(labId)}&`;
@@ -1218,7 +1809,7 @@ async function loadSchedules() {
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch schedules (${res.status})`);
 
@@ -1232,20 +1823,17 @@ async function loadSchedules() {
 
         data.forEach(s => {
             const tr = document.createElement('tr');
-            const statusClass = `status-${s.status.toLowerCase()}`;
-            const priorityClass = `badge-priority-${s.priority.toLowerCase()}`;
-
             const canCancel = s.status !== 'CANCELLED' && s.status !== 'COMPLETED';
 
             tr.innerHTML = `
-                <td><strong>#${s.id}</strong></td>
-                <td><strong>${escapeHtml(s.assetTag || '-')}</strong><br><small class="stat-meta">${escapeHtml(s.equipmentName || '-')}</small></td>
-                <td>${escapeHtml(s.laboratoryCode || '-')}<br><small class="stat-meta">${escapeHtml(s.laboratoryName || '')}</small></td>
-                <td>${s.scheduledDate}</td>
-                <td><strong>${s.dueDate}</strong></td>
-                <td><span class="status-pill ${statusClass}">${s.status}</span></td>
-                <td><span class="badge-priority ${priorityClass}">${s.priority}</span></td>
-                <td><small>${escapeHtml(s.remarks || '-')}</small></td>
+                <td><code>#${s.id}</code></td>
+                <td><strong>${escapeHtml(s.assetTag || '—')}</strong><br><small class="stat-meta">${escapeHtml(s.equipmentName || '—')}</small></td>
+                <td><strong>${escapeHtml(s.laboratoryCode || '—')}</strong><br><small class="stat-meta">${escapeHtml(s.laboratoryName || '')}</small></td>
+                <td>${formatDate(s.scheduledDate)}</td>
+                <td><strong>${formatDate(s.dueDate)}</strong></td>
+                <td>${formatStatusBadge(s.status)}</td>
+                <td>${formatPriorityBadge(s.priority)}</td>
+                <td><small>${escapeHtml(s.remarks || '—')}</small></td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editSchedule(${JSON.stringify(s)})'>Edit</button>
                     ${canCancel ? `<button class="btn btn-secondary btn-sm" onclick="cancelSchedule(${s.id})">Cancel</button>` : ''}
@@ -1313,13 +1901,19 @@ async function saveSchedule(event) {
 
         showFeedback(feedback, `Calibration schedule #${data.id} (${data.status}) saved successfully!`, true);
         resetScheduleForm();
+        closeScheduleModal();
         loadSchedules();
     } catch (err) {
         showFeedback(feedback, err.message, false);
     }
 }
 
-function editSchedule(s) {
+async function editSchedule(s) {
+    if (!equipmentCache || equipmentCache.length === 0) {
+        await loadEquipment();
+    } else {
+        populateScheduleEquipmentDropdown();
+    }
     document.getElementById('schedule-id').value = s.id;
     document.getElementById('schedule-equipment-select').value = s.equipmentId;
     document.getElementById('schedule-equipment-select').disabled = true;
@@ -1335,8 +1929,11 @@ function editSchedule(s) {
 
     document.getElementById('schedule-remarks').value = s.remarks || '';
     document.getElementById('btn-schedule-save').textContent = 'Update Schedule';
-
-    document.getElementById('schedule-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const modal = document.getElementById('schedule-modal');
+    if (modal) {
+        document.getElementById('schedule-modal-title').textContent = 'Edit Calibration Schedule';
+        modal.style.display = 'flex';
+    }
 }
 
 function resetScheduleForm() {
@@ -1516,7 +2113,7 @@ async function loadRecords() {
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch calibration records (${res.status})`);
 
@@ -1530,20 +2127,17 @@ async function loadRecords() {
 
         data.forEach(r => {
             const tr = document.createElement('tr');
-            const resultClass = `badge-result-${r.result.toLowerCase()}`;
-            const typeClass = `badge-type-${r.calibratedByType.toLowerCase()}`;
-
             tr.innerHTML = `
-                <td><strong>#${r.id}</strong></td>
-                <td><strong>${escapeHtml(r.assetTag || '-')}</strong><br><small class="stat-meta">${escapeHtml(r.equipmentName || '-')}</small></td>
-                <td>${escapeHtml(r.laboratoryCode || '-')}<br><small class="stat-meta">${escapeHtml(r.laboratoryName || '')}</small></td>
-                <td>${r.calibrationDate}</td>
-                <td><strong>${r.nextDueDate}</strong></td>
-                <td><span class="badge-calib-type ${typeClass}">${r.calibratedByType}</span></td>
-                <td>${escapeHtml(r.calibratorName)}</td>
-                <td><span class="badge-result ${resultClass}">${r.result}</span></td>
-                <td>${escapeHtml(r.standardsUsed || '-')}<br><small class="stat-meta">${escapeHtml(r.uncertaintyMeasurement || '')}</small></td>
-                <td><small>${escapeHtml(r.notes || '-')}</small></td>
+                <td><code>#${r.id}</code></td>
+                <td><strong>${escapeHtml(r.assetTag || '—')}</strong><br><small class="stat-meta">${escapeHtml(r.equipmentName || '—')}</small></td>
+                <td><strong>${escapeHtml(r.laboratoryCode || '—')}</strong><br><small class="stat-meta">${escapeHtml(r.laboratoryName || '')}</small></td>
+                <td>${formatDate(r.calibrationDate)}</td>
+                <td><strong>${formatDate(r.nextDueDate)}</strong></td>
+                <td><span class="badge-calib-type">${formatCalibratorType(r.calibratedByType)}</span></td>
+                <td>${escapeHtml(r.calibratorName || '—')}</td>
+                <td>${formatResultBadge(r.result)}</td>
+                <td>${escapeHtml(r.standardsUsed || '—')}<br><small class="stat-meta">${escapeHtml(r.uncertaintyMeasurement || '')}</small></td>
+                <td><small>${escapeHtml(r.notes || '—')}</small></td>
             `;
             tbody.appendChild(tr);
         });
@@ -1604,6 +2198,7 @@ async function saveRecord(event) {
 
         showFeedback(feedback, `Calibration record #${data.id} (${data.result}) saved successfully!`, true);
         resetRecordForm();
+        closeRecordModal();
         loadRecords();
         loadSchedules();
         loadEquipment();
@@ -1693,7 +2288,7 @@ async function loadDocuments() {
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch documents (${res.status})`);
 
@@ -1709,8 +2304,7 @@ async function loadDocuments() {
 
         data.forEach(d => {
             const tr = document.createElement('tr');
-            const statusClass = `badge-doc-${d.validityStatus.toLowerCase()}`;
-            const sizeFormatted = d.fileSizeBytes ? formatFileSize(d.fileSizeBytes) : '-';
+            const sizeFormatted = d.fileSizeBytes ? formatFileSize(d.fileSizeBytes) : '—';
 
             let deleteButton = '';
             if (isAdmin) {
@@ -1722,17 +2316,17 @@ async function loadDocuments() {
             }
 
             tr.innerHTML = `
-                <td><strong>#${d.id}</strong></td>
-                <td><strong>${escapeHtml(d.equipmentCode || '-')}</strong><br><small class="stat-meta">${escapeHtml(d.equipmentName || '-')}</small></td>
-                <td>${escapeHtml(d.laboratoryName || '-')}</td>
-                <td>${d.calibrationRecordId ? `Record #${d.calibrationRecordId}<br><small class="stat-meta">${d.calibrationDate || ''}</small>` : '<span class="text-muted">None (General)</span>'}</td>
+                <td><code>#${d.id}</code></td>
+                <td><strong>${escapeHtml(d.equipmentCode || '—')}</strong><br><small class="stat-meta">${escapeHtml(d.equipmentName || '—')}</small></td>
+                <td>${escapeHtml(d.laboratoryName || '—')}</td>
+                <td>${d.calibrationRecordId ? `<code>Record #${d.calibrationRecordId}</code><br><small class="stat-meta">${formatDate(d.calibrationDate)}</small>` : '<span class="text-muted">None (General)</span>'}</td>
                 <td><strong>${escapeHtml(d.documentName)}</strong></td>
-                <td>${escapeHtml(d.certificateNumber || '-')}</td>
+                <td><code>${escapeHtml(d.certificateNumber || '—')}</code></td>
                 <td><span class="badge-file-type">${escapeHtml(d.fileType)}</span><br><small class="stat-meta">${sizeFormatted}</small></td>
-                <td>${d.issueDate || '-'}</td>
-                <td>${d.validUntil || '-'}</td>
-                <td><span class="badge-doc-status ${statusClass}">${d.validityStatus}</span></td>
-                <td><small>${new Date(d.uploadedAt).toLocaleDateString()}</small></td>
+                <td>${formatDate(d.issueDate)}</td>
+                <td><strong>${formatDate(d.validUntil)}</strong></td>
+                <td>${formatStatusBadge(d.validityStatus)}</td>
+                <td><small>${formatDateTime(d.uploadedAt)}</small></td>
                 <td>
                     <button class="btn btn-sm btn-primary" onclick="downloadDocument(${d.id})">Download</button>
                     ${deleteButton}
@@ -1809,6 +2403,7 @@ async function uploadDocument(event) {
 
         showFeedback(feedback, `Document "${data.documentName}" uploaded successfully!`, true);
         resetDocForm();
+        closeDocumentModal();
         loadDocuments();
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -1933,7 +2528,7 @@ async function loadNotifications() {
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch notifications (${res.status})`);
 
@@ -1942,14 +2537,13 @@ async function loadNotifications() {
         container.innerHTML = '';
 
         if (data.length === 0) {
-            container.innerHTML = '<div class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No notifications found matching criteria.</div>';
+            container.innerHTML = '<div class="text-center" style="padding: 2rem; color: var(--text-muted);"><p>No notifications found matching criteria.</p></div>';
             return;
         }
 
         data.forEach(n => {
             const div = document.createElement('div');
             div.className = `notif-item ${n.read ? 'read' : 'unread'}`;
-            const priorityClass = `badge-priority-${(n.priority || 'medium').toLowerCase()}`;
             const readStatusBadge = n.read 
                 ? '<span class="badge-read">READ</span>' 
                 : '<span class="badge-unread">UNREAD</span>';
@@ -1961,20 +2555,20 @@ async function loadNotifications() {
             div.innerHTML = `
                 <div style="flex: 1;">
                     <div class="notif-title-row">
-                        <span class="${priorityClass}">${n.priority}</span>
-                        <span class="badge-file-type">${n.notificationType}</span>
+                        ${formatPriorityBadge(n.priority)}
+                        <span class="badge-file-type">${formatNotificationType(n.notificationType)}</span>
                         ${readStatusBadge}
                         <span class="notif-title">${escapeHtml(n.title)}</span>
                     </div>
-                    <div style="font-size: 0.85rem; color: var(--text-primary); margin: 0.25rem 0;">
+                    <div style="font-size: 0.85rem; color: var(--text-primary); margin: 0.35rem 0;">
                         ${escapeHtml(n.message)}
                     </div>
                     <div class="notif-meta">
-                        <strong>Equipment:</strong> ${escapeHtml(n.equipmentName || '-')} (${escapeHtml(n.equipmentCode || '-')}) | 
-                        <strong>Laboratory:</strong> ${escapeHtml(n.laboratoryName || '-')} | 
-                        ${n.scheduledDueDate ? `<strong>Due Date:</strong> ${n.scheduledDueDate} | ` : ''}
-                        <strong>Received:</strong> ${new Date(n.createdAt).toLocaleString()}
-                        ${n.readAt ? ` | <strong>Read:</strong> ${new Date(n.readAt).toLocaleString()}` : ''}
+                        <strong>Equipment:</strong> ${escapeHtml(n.equipmentName || '—')} (${escapeHtml(n.equipmentCode || '—')}) &bull; 
+                        <strong>Laboratory:</strong> ${escapeHtml(n.laboratoryName || '—')} &bull; 
+                        ${n.scheduledDueDate ? `<strong>Due Date:</strong> ${formatDate(n.scheduledDueDate)} &bull; ` : ''}
+                        <strong>Received:</strong> ${formatDateTime(n.createdAt)}
+                        ${n.readAt ? ` &bull; <strong>Read:</strong> ${formatDateTime(n.readAt)}` : ''}
                     </div>
                 </div>
                 <div style="margin-left: 1rem; display: flex; align-items: center;">
@@ -1995,10 +2589,11 @@ async function markNotificationRead(id) {
             headers: getAuthHeaders()
         });
         const data = await res.json();
-        document.getElementById('json-viewer').textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to mark notification read (${res.status})`);
 
+        showToast('Notification marked as read', 'info', 'Updated');
         loadNotifications();
         updateUnreadCount();
     } catch (err) {
@@ -2013,10 +2608,11 @@ async function markAllNotificationsAsRead() {
             headers: getAuthHeaders()
         });
         const data = await res.json();
-        document.getElementById('json-viewer').textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to mark all read (${res.status})`);
 
+        showToast(`${data.updatedCount} notification(s) marked as read`, 'success', 'All Read');
         showFeedback(document.getElementById('notif-feedback'), `${data.updatedCount} notification(s) marked as read`, true);
         loadNotifications();
         updateUnreadCount();
@@ -2027,7 +2623,7 @@ async function markAllNotificationsAsRead() {
 
 async function triggerCalibrationAlerts() {
     const feedback = document.getElementById('notif-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
+    showToast('Evaluating upcoming and overdue calibration schedules...', 'info', 'Evaluating Alerts');
 
     try {
         const res = await fetch('/api/notifications/generate-calibration-alerts', {
@@ -2035,11 +2631,12 @@ async function triggerCalibrationAlerts() {
             headers: getAuthHeaders()
         });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Alert generation failed (${res.status})`);
 
         const msg = `Alert Evaluation Complete: ${data.notificationsCreated} created, ${data.notificationsSkippedAsDuplicates} skipped (Upcoming: ${data.upcomingSchedulesProcessed}, Due: ${data.dueSchedulesProcessed}, Overdue: ${data.overdueSchedulesProcessed})`;
+        showToast(msg, 'success', 'Alerts Generated');
         showFeedback(feedback, msg, true);
         loadNotifications();
         updateUnreadCount();
@@ -2359,6 +2956,9 @@ function resetDashboardUI() {
 // Utilities
 // -------------------------------------------------------------
 function showFeedback(element, message, isSuccess) {
+    if (message) {
+        showToast(message, isSuccess ? 'success' : 'error');
+    }
     if (!element) return;
     element.className = isSuccess ? 'feedback-msg feedback-success' : 'feedback-msg feedback-error';
     element.textContent = message;
@@ -2366,16 +2966,6 @@ function showFeedback(element, message, isSuccess) {
     setTimeout(() => {
         element.style.display = 'none';
     }, 6000);
-}
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
 }
 
 // -------------------------------------------------------------
@@ -2432,14 +3022,14 @@ async function loadAuditLogs() {
                 else if (act.includes('DELETED') || act.includes('DEACTIVATED') || act.includes('UNASSIGNED') || act.includes('CANCELLED')) badgeClass = 'badge-audit-delete';
                 else if (act.includes('TRIGGERED') || act.includes('FAILURE')) badgeClass = 'badge-audit-alert';
 
-                const formattedTime = log.createdAt ? new Date(log.createdAt).toLocaleString() : '-';
+                const formattedTime = formatDateTime(log.createdAt);
                 const actorDisplay = log.actorStaffName
                     ? `${escapeHtml(log.actorStaffName)} <span style="color:var(--text-muted); font-size:0.75rem;">(${escapeHtml(log.actorStaffEmail || log.actorIdentifier || '')})</span>`
                     : escapeHtml(log.actorIdentifier || 'System / Anonymous');
 
                 const entityDisplay = log.entityType
-                    ? `<span class="badge-audit-entity">${escapeHtml(log.entityType)}</span> ${log.entityId ? '#' + log.entityId : ''}`
-                    : '-';
+                    ? `<span class="badge-audit-entity">${escapeHtml(log.entityType)}</span> ${log.entityId ? '<code>#' + log.entityId + '</code>' : ''}`
+                    : '—';
 
                 const hasDiff = (log.oldValues && log.oldValues.trim() !== '') || (log.newValues && log.newValues.trim() !== '');
                 const diffBtn = hasDiff
@@ -2452,8 +3042,8 @@ async function loadAuditLogs() {
                         <td style="font-size:0.85rem;">${actorDisplay}</td>
                         <td><span class="badge-audit-action ${badgeClass}">${escapeHtml(log.action)}</span></td>
                         <td>${entityDisplay}</td>
-                        <td style="font-size:0.85rem;">${escapeHtml(log.description || '-')}</td>
-                        <td style="font-size:0.82rem; font-family:var(--font-mono, monospace);">${escapeHtml(log.ipAddress || '-')}</td>
+                        <td style="font-size:0.85rem;">${escapeHtml(log.description || '—')}</td>
+                        <td style="font-size:0.82rem; font-family:var(--font-mono, monospace);">${escapeHtml(log.ipAddress || '—')}</td>
                         <td>${diffBtn}</td>
                     </tr>
                 `;
@@ -2714,36 +3304,39 @@ function onSelectGlobalSearchResult(targetSection, id) {
     const dropdown = document.getElementById('global-search-dropdown');
     if (dropdown) dropdown.style.display = 'none';
 
-    let targetEl = null;
-    switch (targetSection) {
-        case 'equipment':
-            targetEl = document.getElementById('filter-equipment-search');
-            if (targetEl) {
-                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                targetEl.focus();
-            }
-            break;
-        case 'laboratories':
-            targetEl = document.getElementById('lab-table-body');
-            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            break;
-        case 'staff':
-            targetEl = document.getElementById('staff-table-body');
-            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            break;
-        case 'schedules':
-            targetEl = document.getElementById('schedule-table-body');
-            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            break;
-        case 'records':
-            targetEl = document.getElementById('record-table-body');
-            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            break;
-        case 'documents':
-            targetEl = document.getElementById('doc-table-body');
-            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            break;
+    if (targetSection) {
+        navigateTo(targetSection);
     }
+
+    setTimeout(() => {
+        let targetEl = null;
+        switch (targetSection) {
+            case 'equipment':
+                targetEl = document.getElementById('filter-equipment-search') || document.getElementById('equipment-table-body');
+                if (targetEl && targetEl.tagName === 'INPUT') {
+                    targetEl.focus();
+                }
+                break;
+            case 'laboratories':
+                targetEl = document.getElementById('lab-table-body');
+                break;
+            case 'staff':
+                targetEl = document.getElementById('staff-table-body');
+                break;
+            case 'schedules':
+                targetEl = document.getElementById('schedule-table-body');
+                break;
+            case 'records':
+                targetEl = document.getElementById('record-table-body');
+                break;
+            case 'documents':
+                targetEl = document.getElementById('document-table-body');
+                break;
+        }
+        if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 150);
 }
 
 // Close search dropdown on click outside
@@ -2820,14 +3413,20 @@ function switchReportCategory(category) {
 
 function selectReportType(reportType, cardEl) {
     currentReportType = reportType;
+    const norm = (reportType || '').toLowerCase().replace(/_/g, '-');
 
     // Highlight card
-    document.querySelectorAll('.report-selection-card').forEach(card => card.classList.remove('active'));
+    document.querySelectorAll('.report-cat-card, .report-selection-card').forEach(card => card.classList.remove('active'));
     if (cardEl) {
         cardEl.classList.add('active');
     } else {
-        const matchingCard = document.querySelector(`.report-selection-card[data-report-type="${reportType}"]`);
-        if (matchingCard) matchingCard.classList.add('active');
+        document.querySelectorAll('.report-cat-card, .report-selection-card').forEach(card => {
+            const attr = (card.getAttribute('data-report-type') || '').toLowerCase().replace(/_/g, '-');
+            const oc = (card.getAttribute('onclick') || '').toLowerCase().replace(/_/g, '-');
+            if (attr === norm || oc.includes(norm)) {
+                card.classList.add('active');
+            }
+        });
     }
 
     updateReportFilterVisibility(reportType);
@@ -2853,7 +3452,9 @@ function updateReportFilterVisibility(reportType) {
     if (groupResult) groupResult.style.display = 'none';
     if (groupCalibrator) groupCalibrator.style.display = 'none';
 
-    switch (reportType) {
+    const norm = (reportType || '').toLowerCase().replace(/_/g, '-');
+
+    switch (norm) {
         case 'calibration-status':
             if (groupStatus) groupStatus.style.display = 'flex';
             if (groupPriority) groupPriority.style.display = 'flex';
@@ -2873,9 +3474,11 @@ function updateReportFilterVisibility(reportType) {
             if (groupCalibrator) groupCalibrator.style.display = 'flex';
             break;
         case 'equipment':
+        case 'equipment-inventory':
             if (groupStatus) groupStatus.style.display = 'flex';
             break;
         case 'laboratories':
+        case 'laboratory-summary':
         case 'staff-assignments':
         case 'compliance-attention':
         case 'expired-certificates':
@@ -2906,12 +3509,12 @@ function buildReportQueryParams() {
     if (result) params.append('calibrationResult', result);
     if (calibrator) params.append('calibratorType', calibrator);
 
-    // Map sub-categories of compliance attention
-    if (currentReportType === 'expired-certificates') {
+    const norm = (currentReportType || '').toLowerCase().replace(/_/g, '-');
+    if (norm === 'expired-certificates') {
         params.append('category', 'EXPIRED_CERTIFICATE');
-    } else if (currentReportType === 'failed-calibrations') {
+    } else if (norm === 'failed-calibrations') {
         params.append('category', 'FAILED_CALIBRATION');
-    } else if (currentReportType === 'out-of-calibration') {
+    } else if (norm === 'out-of-calibration') {
         params.append('category', 'OUT_OF_CALIBRATION');
     }
 
@@ -2919,15 +3522,21 @@ function buildReportQueryParams() {
 }
 
 function resolveReportEndpoint(reportType) {
-    switch (reportType) {
+    const norm = (reportType || '').toLowerCase().replace(/_/g, '-');
+    switch (norm) {
         case 'calibration-status': return '/api/reports/calibration-status';
         case 'upcoming-calibrations': return '/api/reports/upcoming-calibrations';
         case 'due-calibrations': return '/api/reports/due-calibrations';
         case 'overdue-calibrations': return '/api/reports/overdue-calibrations';
         case 'calibration-history': return '/api/reports/calibration-history';
-        case 'equipment': return '/api/reports/equipment';
-        case 'laboratories': return '/api/reports/laboratories';
-        case 'staff-assignments': return '/api/reports/staff-assignments';
+        case 'equipment':
+        case 'equipment-inventory':
+            return '/api/reports/equipment';
+        case 'laboratories':
+        case 'laboratory-summary':
+            return '/api/reports/laboratories';
+        case 'staff-assignments':
+            return '/api/reports/staff-assignments';
         case 'compliance-attention':
         case 'expired-certificates':
         case 'failed-calibrations':
@@ -2957,7 +3566,7 @@ async function loadCurrentReport() {
         const url = `${endpoint}?${params.toString()}`;
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        document.getElementById('json-viewer').textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) {
             throw new Error(data.message || `Failed to fetch report (${res.status})`);
@@ -2990,21 +3599,24 @@ function renderReportTable(reportType, pageData) {
     if (btnNext) btnNext.disabled = (reportCurrentPage >= reportTotalPages - 1);
 
     if (content.length === 0) {
-        headEl.innerHTML = '';
-        bodyEl.innerHTML = `
-            <tr>
-                <td colspan="10" class="text-center empty-filter-state">
-                    <p>No records found for the selected filters.</p>
-                </td>
-            </tr>
-        `;
+        if (headEl) headEl.innerHTML = '';
+        if (bodyEl) {
+            bodyEl.innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center empty-filter-state" style="padding: 2rem; color: var(--text-muted);">
+                        <p>No records found for the selected filters.</p>
+                    </td>
+                </tr>
+            `;
+        }
         return;
     }
 
     let headersHtml = '';
     let rowsHtml = '';
+    const norm = (reportType || '').toLowerCase().replace(/_/g, '-');
 
-    switch (reportType) {
+    switch (norm) {
         case 'calibration-status':
             headersHtml = `
                 <tr>
@@ -3020,12 +3632,12 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td><strong>${escapeHtml(item.equipmentName || '-')}</strong></td>
-                    <td><code>${escapeHtml(item.assetTag || '-')}</code></td>
-                    <td>${escapeHtml(item.laboratoryName || '-')}</td>
-                    <td><span class="status-pill status-${(item.equipmentStatus || '').toLowerCase()}">${escapeHtml(item.equipmentStatus || '-')}</span></td>
-                    <td>${item.latestCalibrationDate || '-'}</td>
-                    <td><strong>${item.nextDueDate || '-'}</strong></td>
+                    <td><strong>${escapeHtml(item.equipmentName || '—')}</strong></td>
+                    <td><code>${escapeHtml(item.assetTag || '—')}</code></td>
+                    <td>${escapeHtml(item.laboratoryName || '—')}</td>
+                    <td>${formatStatusBadge(item.equipmentStatus)}</td>
+                    <td>${formatDate(item.latestCalibrationDate)}</td>
+                    <td><strong>${formatDate(item.nextDueDate)}</strong></td>
                     <td>${formatResultBadge(item.latestCalibrationResult)}</td>
                     <td>${formatPriorityBadge(item.calibrationPriority)}</td>
                 </tr>
@@ -3036,7 +3648,6 @@ function renderReportTable(reportType, pageData) {
         case 'due-calibrations':
             headersHtml = `
                 <tr>
-                    <th>Schedule ID</th>
                     <th>Equipment</th>
                     <th>Asset Tag</th>
                     <th>Laboratory</th>
@@ -3049,14 +3660,13 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td>#${item.scheduleId}</td>
-                    <td><strong>${escapeHtml(item.equipmentName || '-')}</strong></td>
-                    <td><code>${escapeHtml(item.assetTag || '-')}</code></td>
-                    <td>${escapeHtml(item.laboratoryName || '-')}</td>
-                    <td>${item.scheduledDate || '-'}</td>
-                    <td><strong>${item.dueDate || '-'}</strong></td>
+                    <td><strong>${escapeHtml(item.equipmentName || '—')}</strong></td>
+                    <td><code>${escapeHtml(item.assetTag || '—')}</code></td>
+                    <td>${escapeHtml(item.laboratoryName || '—')}</td>
+                    <td>${formatDate(item.scheduledDate)}</td>
+                    <td><strong>${formatDate(item.dueDate)}</strong></td>
                     <td>${formatPriorityBadge(item.priority)}</td>
-                    <td><span class="status-pill status-${(item.scheduleStatus || '').toLowerCase()}">${escapeHtml(item.scheduleStatus || '-')}</span></td>
+                    <td>${formatStatusBadge(item.scheduleStatus)}</td>
                     <td>${escapeHtml(item.responsibleStaff || 'Unassigned')}</td>
                 </tr>
             `).join('');
@@ -3065,7 +3675,6 @@ function renderReportTable(reportType, pageData) {
         case 'overdue-calibrations':
             headersHtml = `
                 <tr>
-                    <th>Schedule ID</th>
                     <th>Equipment</th>
                     <th>Asset Tag</th>
                     <th>Laboratory</th>
@@ -3078,13 +3687,12 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td>#${item.scheduleId}</td>
-                    <td><strong>${escapeHtml(item.equipmentName || '-')}</strong></td>
-                    <td><code>${escapeHtml(item.assetTag || '-')}</code></td>
-                    <td>${escapeHtml(item.laboratoryName || '-')}</td>
-                    <td>${item.scheduledDate || '-'}</td>
-                    <td><strong style="color:var(--danger, #dc2626);">${item.dueDate || '-'}</strong></td>
-                    <td><span class="badge-priority-critical" style="padding:0.2rem 0.5rem; border-radius:4px; font-weight:700;">+${item.daysOverdue} days</span></td>
+                    <td><strong>${escapeHtml(item.equipmentName || '—')}</strong></td>
+                    <td><code>${escapeHtml(item.assetTag || '—')}</code></td>
+                    <td>${escapeHtml(item.laboratoryName || '—')}</td>
+                    <td>${formatDate(item.scheduledDate)}</td>
+                    <td><strong style="color:var(--danger, #dc2626);">${formatDate(item.dueDate)}</strong></td>
+                    <td><span class="badge-priority badge-priority-critical">+${item.daysOverdue} days</span></td>
                     <td>${formatPriorityBadge(item.priority)}</td>
                     <td>${escapeHtml(item.responsibleStaff || 'Unassigned')}</td>
                 </tr>
@@ -3094,7 +3702,6 @@ function renderReportTable(reportType, pageData) {
         case 'calibration-history':
             headersHtml = `
                 <tr>
-                    <th>Record ID</th>
                     <th>Equipment</th>
                     <th>Asset Tag</th>
                     <th>Laboratory</th>
@@ -3108,21 +3715,21 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td>#${item.recordId}</td>
-                    <td><strong>${escapeHtml(item.equipmentName || '-')}</strong></td>
-                    <td><code>${escapeHtml(item.assetTag || '-')}</code></td>
-                    <td>${escapeHtml(item.laboratoryName || '-')}</td>
-                    <td>${item.calibrationDate || '-'}</td>
-                    <td>${item.nextDueDate || '-'}</td>
-                    <td>${formatResultBadge(item.calibrationResult)}</td>
-                    <td>${escapeHtml(item.calibratorType || '-')}</td>
-                    <td>${escapeHtml(item.calibratorName || '-')}</td>
-                    <td>${escapeHtml(item.standardsUsed || '-')}</td>
+                    <td><strong>${escapeHtml(item.equipmentName || '—')}</strong></td>
+                    <td><code>${escapeHtml(item.assetTag || '—')}</code></td>
+                    <td>${escapeHtml(item.laboratoryName || '—')}</td>
+                    <td>${formatDate(item.calibrationDate)}</td>
+                    <td><strong>${formatDate(item.nextDueDate)}</strong></td>
+                    <td>${formatResultBadge(item.calibrationResult || item.result)}</td>
+                    <td><span class="badge-calib-type">${formatCalibratorType(item.calibratorType || item.calibratedByType)}</span></td>
+                    <td>${escapeHtml(item.calibratorName || '—')}</td>
+                    <td>${escapeHtml(item.standardsUsed || '—')}</td>
                 </tr>
             `).join('');
             break;
 
         case 'equipment':
+        case 'equipment-inventory':
             headersHtml = `
                 <tr>
                     <th>Asset Tag</th>
@@ -3139,21 +3746,22 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td><code>${escapeHtml(item.assetTag || '-')}</code></td>
-                    <td>${escapeHtml(item.serialNumber || '-')}</td>
-                    <td><strong>${escapeHtml(item.equipmentName || '-')}</strong></td>
-                    <td>${escapeHtml(item.modelNumber || '-')}</td>
-                    <td>${escapeHtml(item.manufacturer || '-')}</td>
-                    <td>${escapeHtml(item.laboratoryName || '-')}</td>
-                    <td>${item.installationDate || '-'}</td>
-                    <td>${item.calibrationFrequencyDays || '-'}</td>
-                    <td><span class="status-pill status-${(item.currentStatus || '').toLowerCase()}">${escapeHtml(item.currentStatus || '-')}</span></td>
-                    <td><strong>${item.nextDueDate || '-'}</strong></td>
+                    <td><code>${escapeHtml(item.assetTag || '—')}</code></td>
+                    <td>${escapeHtml(item.serialNumber || '—')}</td>
+                    <td><strong>${escapeHtml(item.equipmentName || '—')}</strong></td>
+                    <td>${escapeHtml(item.modelNumber || '—')}</td>
+                    <td>${escapeHtml(item.manufacturer || '—')}</td>
+                    <td>${escapeHtml(item.laboratoryName || '—')}</td>
+                    <td>${formatDate(item.installationDate)}</td>
+                    <td>${item.calibrationFrequencyDays || '—'} days</td>
+                    <td>${formatStatusBadge(item.currentStatus || item.status)}</td>
+                    <td><strong>${formatDate(item.nextDueDate)}</strong></td>
                 </tr>
             `).join('');
             break;
 
         case 'laboratories':
+        case 'laboratory-summary':
             headersHtml = `
                 <tr>
                     <th>Laboratory Name</th>
@@ -3169,17 +3777,17 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td><strong>${escapeHtml(item.laboratoryName || '-')}</strong></td>
-                    <td><code>${escapeHtml(item.laboratoryCode || '-')}</code></td>
-                    <td>${escapeHtml(item.collegeName || '-')}</td>
-                    <td>${escapeHtml(item.department || '-')}</td>
-                    <td>${escapeHtml(item.location || '-')}</td>
-                    <td><span class="status-pill status-${(item.laboratoryStatus || '').toLowerCase()}">${escapeHtml(item.laboratoryStatus || '-')}</span></td>
-                    <td>${item.totalEquipmentCount}</td>
-                    <td>${item.activeStaffCount}</td>
+                    <td><strong>${escapeHtml(item.laboratoryName || '—')}</strong></td>
+                    <td><code>${escapeHtml(item.laboratoryCode || '—')}</code></td>
+                    <td>${escapeHtml(item.collegeName || '—')}</td>
+                    <td>${escapeHtml(item.department || '—')}</td>
+                    <td>${escapeHtml(item.location || '—')}</td>
+                    <td>${formatStatusBadge(item.laboratoryStatus)}</td>
+                    <td>${item.totalEquipmentCount || 0}</td>
+                    <td>${item.activeStaffCount || 0}</td>
                     <td>
-                        ${item.calibrationAttentionCount > 0
-                            ? `<span class="badge-priority-critical" style="padding:0.2rem 0.5rem; border-radius:4px; font-weight:700;">${item.calibrationAttentionCount} items</span>`
+                        ${(item.calibrationAttentionCount || 0) > 0
+                            ? `<span class="badge-priority badge-priority-critical">${item.calibrationAttentionCount} items</span>`
                             : `<span style="color:#16a34a; font-weight:600;">&#10003; Compliant</span>`}
                     </td>
                 </tr>
@@ -3201,14 +3809,14 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td><strong>${escapeHtml(item.staffName || '-')}</strong></td>
-                    <td><code>${escapeHtml(item.staffId || '-')}</code></td>
-                    <td>${escapeHtml(item.email || '-')}</td>
-                    <td>${escapeHtml(item.designation || '-')}</td>
-                    <td>${escapeHtml(item.laboratoryName || '-')} (${escapeHtml(item.laboratoryCode || '')})</td>
-                    <td><span class="badge-role">${escapeHtml(item.roleInLab || '-')}</span></td>
-                    <td>${item.isPrimaryContact ? '<span class="badge-primary-contact">&#9733; PRIMARY</span>' : '-'}</td>
-                    <td><span class="status-pill status-${(item.assignmentStatus || '').toLowerCase()}">${escapeHtml(item.assignmentStatus || '-')}</span></td>
+                    <td><strong>${escapeHtml(item.staffName || '—')}</strong></td>
+                    <td><code>${escapeHtml(item.staffId || '—')}</code></td>
+                    <td>${escapeHtml(item.email || '—')}</td>
+                    <td>${escapeHtml(item.designation || '—')}</td>
+                    <td>${escapeHtml(item.laboratoryName || '—')} (${escapeHtml(item.laboratoryCode || '')})</td>
+                    <td><span class="badge-role">${formatRole(item.roleInLab)}</span></td>
+                    <td>${item.isPrimaryContact ? '<span class="badge-primary-contact">&#9733; PRIMARY</span>' : '—'}</td>
+                    <td>${formatStatusBadge(item.assignmentStatus)}</td>
                 </tr>
             `).join('');
             break;
@@ -3231,34 +3839,21 @@ function renderReportTable(reportType, pageData) {
             `;
             rowsHtml = content.map(item => `
                 <tr>
-                    <td><span class="badge-role">${escapeHtml(item.category || '-')}</span></td>
-                    <td><span class="badge-priority badge-priority-${(item.severity || '').toLowerCase()}">${escapeHtml(item.severity || '-')}</span></td>
-                    <td><strong>${escapeHtml(item.equipmentName || '-')}</strong></td>
-                    <td><code>${escapeHtml(item.assetTag || '-')}</code></td>
-                    <td>${escapeHtml(item.laboratoryName || '-')}</td>
-                    <td>${escapeHtml(item.details || '-')}</td>
-                    <td><strong style="color:#b91c1c;">${escapeHtml(item.actionRequired || '-')}</strong></td>
-                    <td>${item.relevantDate || '-'}</td>
+                    <td><span class="badge-role">${escapeHtml(item.category ? item.category.replace(/_/g, ' ') : '—')}</span></td>
+                    <td>${formatPriorityBadge(item.severity)}</td>
+                    <td><strong>${escapeHtml(item.equipmentName || '—')}</strong></td>
+                    <td><code>${escapeHtml(item.assetTag || '—')}</code></td>
+                    <td>${escapeHtml(item.laboratoryName || '—')}</td>
+                    <td>${escapeHtml(item.details || '—')}</td>
+                    <td><strong style="color:#b91c1c;">${escapeHtml(item.actionRequired || '—')}</strong></td>
+                    <td>${formatDate(item.relevantDate)}</td>
                 </tr>
             `).join('');
             break;
     }
 
-    headEl.innerHTML = headersHtml;
-    bodyEl.innerHTML = rowsHtml;
-}
-
-function formatResultBadge(result) {
-    if (!result) return '-';
-    if (result === 'PASSED') return '<span class="status-completed" style="padding:0.2rem 0.5rem; border-radius:4px;">PASSED</span>';
-    if (result === 'FAILED') return '<span class="status-overdue" style="padding:0.2rem 0.5rem; border-radius:4px;">FAILED</span>';
-    return `<span class="status-due" style="padding:0.2rem 0.5rem; border-radius:4px;">${escapeHtml(result)}</span>`;
-}
-
-function formatPriorityBadge(priority) {
-    if (!priority) return '-';
-    const p = String(priority).toLowerCase();
-    return `<span class="badge-priority badge-priority-${p}">${escapeHtml(priority)}</span>`;
+    if (headEl) headEl.innerHTML = headersHtml;
+    if (bodyEl) bodyEl.innerHTML = rowsHtml;
 }
 
 function applyReportFilters() {
@@ -3364,19 +3959,43 @@ document.addEventListener('DOMContentLoaded', () => {
     checkHealth();
     updateAuthUI();
     if (authToken) {
-        loadDashboard();
-        loadColleges();
-        loadLaboratories();
-        loadStaff();
-        loadEquipment();
-        loadSchedules();
-        loadRecords();
-        loadDocuments();
-        loadNotifications();
+        const hash = window.location.hash ? window.location.hash.replace(/^#\/?/, '') : 'dashboard';
+        navigateTo(hash || 'dashboard');
         updateUnreadCount();
-        initReportsUI();
-        if (currentUser && currentUser.role === 'ADMIN') {
-            loadAuditLogs();
-        }
     }
 });
+
+// Hash routing change listener
+window.addEventListener('hashchange', () => {
+    if (!authToken) return;
+    const route = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+    if (route !== currentRoute) {
+        navigateTo(route);
+    }
+});
+
+// Global click handler for modal backdrop & user dropdown
+window.addEventListener('click', (e) => {
+    // Backdrop close for modals
+    if (e.target && e.target.classList.contains('modal-backdrop')) {
+        e.target.style.display = 'none';
+    }
+    // Close user dropdown when clicking outside
+    const dropdown = document.getElementById('user-dropdown-menu');
+    const toggleBtn = document.getElementById('user-profile-toggle');
+    if (dropdown && dropdown.style.display === 'block' && toggleBtn && !toggleBtn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+// Escape key listener
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop').forEach(m => {
+            m.style.display = 'none';
+        });
+        closeUserDropdown();
+        closeSidebar();
+    }
+});
+
