@@ -396,4 +396,73 @@ class NotificationControllerTest {
                         .header("Authorization", "Bearer " + staff1Token))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("Filter isRead=true: Returns only read notifications")
+    void getNotifications_WithIsReadTrue_ReturnsOnlyReadNotifications() throws Exception {
+        Notification unreadNotif = notificationRepository.save(new Notification(
+                staff1, defaultLab, defaultEquipment, null,
+                "Unread Alert", "This is unread", NotificationType.CALIBRATION_UPCOMING, NotificationPriority.HIGH
+        ));
+
+        Notification readNotif = new Notification(
+                staff1, defaultLab, defaultEquipment, null,
+                "Read Alert", "This is read", NotificationType.CALIBRATION_DUE, NotificationPriority.MEDIUM
+        );
+        readNotif.setRead(true);
+        readNotif = notificationRepository.save(readNotif);
+
+        mockMvc.perform(get("/api/notifications")
+                        .param("isRead", "true")
+                        .header("Authorization", "Bearer " + staff1Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(readNotif.getId()))
+                .andExpect(jsonPath("$[0].read").value(true));
+    }
+
+    @Test
+    @DisplayName("Filter isRead=false: Returns only unread notifications")
+    void getNotifications_WithIsReadFalse_ReturnsOnlyUnreadNotifications() throws Exception {
+        Notification unreadNotif = notificationRepository.save(new Notification(
+                staff1, defaultLab, defaultEquipment, null,
+                "Unread Alert", "This is unread", NotificationType.CALIBRATION_UPCOMING, NotificationPriority.HIGH
+        ));
+
+        Notification readNotif = new Notification(
+                staff1, defaultLab, defaultEquipment, null,
+                "Read Alert", "This is read", NotificationType.CALIBRATION_DUE, NotificationPriority.MEDIUM
+        );
+        readNotif.setRead(true);
+        readNotif = notificationRepository.save(readNotif);
+
+        mockMvc.perform(get("/api/notifications")
+                        .param("isRead", "false")
+                        .header("Authorization", "Bearer " + staff1Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(unreadNotif.getId()))
+                .andExpect(jsonPath("$[0].read").value(false));
+    }
+
+    @Test
+    @DisplayName("Filter omitted isRead: Returns both read and unread notifications")
+    void getNotifications_WithOmittedIsRead_ReturnsAllNotifications() throws Exception {
+        Notification unreadNotif = notificationRepository.save(new Notification(
+                staff1, defaultLab, defaultEquipment, null,
+                "Unread Alert", "This is unread", NotificationType.CALIBRATION_UPCOMING, NotificationPriority.HIGH
+        ));
+
+        Notification readNotif = new Notification(
+                staff1, defaultLab, defaultEquipment, null,
+                "Read Alert", "This is read", NotificationType.CALIBRATION_DUE, NotificationPriority.MEDIUM
+        );
+        readNotif.setRead(true);
+        readNotif = notificationRepository.save(readNotif);
+
+        mockMvc.perform(get("/api/notifications")
+                        .header("Authorization", "Bearer " + staff1Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)));
+    }
 }

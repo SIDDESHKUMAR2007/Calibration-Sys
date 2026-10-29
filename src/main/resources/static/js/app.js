@@ -487,6 +487,18 @@ function closeDocumentModal() {
     if (modal) modal.style.display = 'none';
 }
 
+async function openDocumentModalForRecord(equipmentId, recordId) {
+    await openDocumentModal();
+    if (equipmentId) {
+        const eqSelect = document.getElementById('doc-equipment-id');
+        if (eqSelect) eqSelect.value = equipmentId;
+    }
+    if (recordId) {
+        const recInput = document.getElementById('doc-record-id');
+        if (recInput) recInput.value = recordId;
+    }
+}
+
 function openCollegeModal(col) {
     resetCollegeForm();
     const title = document.getElementById('college-modal-title');
@@ -734,7 +746,10 @@ function updateAuthUI() {
             welcomeMsg.textContent = `Welcome back, ${fullName}. Here is the real-time calibration compliance overview for your assigned laboratories.`;
         }
         updateUnreadCount();
+        updateDesktopNotificationUI();
+        startDesktopNotifPolling();
     } else {
+        stopDesktopNotifPolling();
         if (loginView) loginView.style.display = 'flex';
         if (appShell) appShell.style.display = 'none';
         if (pill) {
@@ -803,11 +818,11 @@ async function loadColleges() {
         data.forEach(c => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><code>#${c.id}</code></td>
                 <td><strong>${escapeHtml(c.code)}</strong></td>
                 <td>${escapeHtml(c.name)}</td>
                 <td>${escapeHtml(c.contactEmail || '—')}</td>
-                <td>${c.totalLaboratories || 0}</td>
+                <td>${escapeHtml(c.contactPhone || '—')}</td>
+                <td>${escapeHtml(c.address || '—')}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editCollege(${JSON.stringify(c)})'>Edit</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteCollege(${c.id})">Delete</button>
@@ -832,6 +847,7 @@ async function loadColleges() {
 
 async function saveCollege(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-college-save');
     const id = document.getElementById('college-id').value;
     const code = document.getElementById('college-code').value.trim();
     const name = document.getElementById('college-name').value.trim();
@@ -839,12 +855,12 @@ async function saveCollege(event) {
     const contactEmail = document.getElementById('college-email').value.trim();
     const contactPhone = document.getElementById('college-phone').value.trim();
     const feedback = document.getElementById('college-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     const payload = { code, name, address, contactEmail, contactPhone };
     const method = id ? 'PUT' : 'POST';
     const url = id ? `/api/colleges/${id}` : '/api/colleges';
 
+    setFormSubmitting(saveBtn, true, 'Saving...');
     try {
         const res = await fetch(url, {
             method,
@@ -853,7 +869,7 @@ async function saveCollege(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Operation failed (${res.status})`);
 
@@ -863,6 +879,8 @@ async function saveCollege(event) {
         loadColleges();
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -890,7 +908,6 @@ function resetCollegeForm() {
 async function deleteCollege(id) {
     if (!confirm(`Are you sure you want to delete College #${id}?`)) return;
     const feedback = document.getElementById('college-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/colleges/${id}`, {
@@ -899,7 +916,7 @@ async function deleteCollege(id) {
         });
 
         if (res.status === 204) {
-            jsonViewer.textContent = JSON.stringify({ message: `College #${id} deleted successfully (204 No Content)` }, null, 2);
+            safeSetJson({ message: `College #${id} deleted successfully (204 No Content)` });
             showFeedback(feedback, `College #${id} deleted successfully`, true);
             loadColleges();
             loadLaboratories();
@@ -907,7 +924,7 @@ async function deleteCollege(id) {
         }
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
         throw new Error(data.message || `Delete failed (${res.status})`);
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -944,17 +961,18 @@ async function loadLaboratories() {
 
         tbody.innerHTML = '';
         if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center">No laboratories found matching criteria.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No laboratories found matching criteria.</td></tr>';
             return;
         }
 
         data.forEach(l => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><code>#${l.id}</code></td>
                 <td><strong>${escapeHtml(l.labCode)}</strong></td>
-                <td>${escapeHtml(l.name)} <br><small class="stat-meta">${escapeHtml(l.department)}</small></td>
-                <td>${escapeHtml(l.collegeCode || '—')}</td>
+                <td>${escapeHtml(l.name)}</td>
+                <td>${escapeHtml(l.collegeName || l.collegeCode || '—')}</td>
+                <td>${escapeHtml(l.department || '—')}</td>
+                <td>${escapeHtml(l.location || '—')}</td>
                 <td>${formatStatusBadge(l.status)}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editLaboratory(${JSON.stringify(l)})'>Edit</button>
@@ -970,6 +988,7 @@ async function loadLaboratories() {
 
 async function saveLaboratory(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-lab-save');
     const id = document.getElementById('lab-id').value;
     const collegeId = document.getElementById('lab-college-select').value;
     const labCode = document.getElementById('lab-code').value.trim();
@@ -978,7 +997,6 @@ async function saveLaboratory(event) {
     const location = document.getElementById('lab-location').value.trim();
     const status = document.getElementById('lab-status').value;
     const feedback = document.getElementById('lab-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     const payload = {
         collegeId: parseInt(collegeId, 10),
@@ -992,6 +1010,7 @@ async function saveLaboratory(event) {
     const method = id ? 'PUT' : 'POST';
     const url = id ? `/api/laboratories/${id}` : '/api/laboratories';
 
+    setFormSubmitting(saveBtn, true, 'Saving...');
     try {
         const res = await fetch(url, {
             method,
@@ -1000,7 +1019,7 @@ async function saveLaboratory(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Operation failed (${res.status})`);
 
@@ -1011,6 +1030,8 @@ async function saveLaboratory(event) {
         loadColleges(); // update lab count
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -1039,7 +1060,6 @@ function resetLabForm() {
 async function deleteLaboratory(id) {
     if (!confirm(`Are you sure you want to delete Laboratory #${id}?`)) return;
     const feedback = document.getElementById('lab-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/laboratories/${id}`, {
@@ -1048,7 +1068,7 @@ async function deleteLaboratory(id) {
         });
 
         if (res.status === 204) {
-            jsonViewer.textContent = JSON.stringify({ message: `Laboratory #${id} deleted successfully (204 No Content)` }, null, 2);
+            safeSetJson({ message: `Laboratory #${id} deleted successfully (204 No Content)` });
             showFeedback(feedback, `Laboratory #${id} deleted successfully`, true);
             loadLaboratories();
             loadColleges();
@@ -1056,7 +1076,7 @@ async function deleteLaboratory(id) {
         }
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
         throw new Error(data.message || `Delete failed (${res.status})`);
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -1101,13 +1121,14 @@ async function loadStaff() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><code>${escapeHtml(s.staffId)}</code></td>
-                <td><strong>${escapeHtml(s.fullName)}</strong><br><small class="stat-meta">${escapeHtml(s.designation || '—')}</small></td>
+                <td><strong>${escapeHtml(s.fullName)}</strong></td>
                 <td>${escapeHtml(s.email)}</td>
+                <td>${escapeHtml(s.designation || '—')}</td>
                 <td>${escapeHtml(s.department || '—')}</td>
                 <td><span class="badge-role">${formatRole(s.systemRole)}</span></td>
                 <td>${formatStatusBadge(s.status)}</td>
-                <td><button class="btn btn-secondary btn-sm" onclick="viewStaffLabs(${s.id}, '${escapeHtml(s.fullName)}')">${s.assignedLaboratoriesCount || 0} Labs</button></td>
                 <td>
+                    <button class="btn btn-secondary btn-sm" onclick="viewStaffLabs(${s.id}, '${escapeHtml(s.fullName)}')">Labs (${s.assignedLaboratoriesCount || 0})</button>
                     <button class="btn btn-secondary btn-sm" onclick='editStaff(${JSON.stringify(s)})'>Edit</button>
                     <button class="btn btn-secondary btn-sm" onclick="toggleStaffStatus(${s.id}, '${s.status}')">${s.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteStaff(${s.id})">Delete</button>
@@ -1122,6 +1143,7 @@ async function loadStaff() {
 
 async function saveStaff(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-staff-save');
     const dbId = document.getElementById('staff-db-id').value;
     const staffId = document.getElementById('staff-code').value.trim();
     const firstName = document.getElementById('staff-firstname').value.trim();
@@ -1134,7 +1156,6 @@ async function saveStaff(event) {
     const systemRole = document.getElementById('staff-system-role').value;
     const status = document.getElementById('staff-status').value;
     const feedback = document.getElementById('staff-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     const payload = {
         staffId,
@@ -1152,6 +1173,7 @@ async function saveStaff(event) {
     const method = dbId ? 'PUT' : 'POST';
     const url = dbId ? `/api/staff/${dbId}` : '/api/staff';
 
+    setFormSubmitting(saveBtn, true, 'Saving...');
     try {
         const res = await fetch(url, {
             method,
@@ -1160,7 +1182,7 @@ async function saveStaff(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Operation failed (${res.status})`);
 
@@ -1173,6 +1195,8 @@ async function saveStaff(event) {
         }
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -1205,7 +1229,6 @@ async function toggleStaffStatus(id, currentStatus) {
 
     if (!confirm(`Are you sure you want to mark ${staff.fullName} as ${newStatus}?`)) return;
     const feedback = document.getElementById('staff-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     const payload = {
         staffId: staff.staffId,
@@ -1227,7 +1250,7 @@ async function toggleStaffStatus(id, currentStatus) {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
         if (!res.ok) throw new Error(data.message || `Status update failed (${res.status})`);
 
         showFeedback(feedback, `Staff status changed to ${newStatus}`, true);
@@ -1243,7 +1266,6 @@ async function toggleStaffStatus(id, currentStatus) {
 async function deleteStaff(id) {
     if (!confirm(`Are you sure you want to delete Staff record #${id}? (Note: Deletion will fail if assignments exist).`)) return;
     const feedback = document.getElementById('staff-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/staff/${id}`, {
@@ -1252,14 +1274,14 @@ async function deleteStaff(id) {
         });
 
         if (res.status === 204) {
-            jsonViewer.textContent = JSON.stringify({ message: `Staff #${id} deleted successfully (204 No Content)` }, null, 2);
+            safeSetJson({ message: `Staff #${id} deleted successfully (204 No Content)` });
             showFeedback(feedback, `Staff #${id} deleted successfully`, true);
             loadStaff();
             return;
         }
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
         throw new Error(data.message || `Delete failed (${res.status})`);
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -1320,7 +1342,6 @@ async function loadSelectedLabAssignments() {
     const labId = document.getElementById('assign-lab-select').value;
     const tbody = document.getElementById('assignment-table-body');
     const feedback = document.getElementById('assignment-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     if (!labId) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center">Select a laboratory above to view assignments</td></tr>';
@@ -1330,7 +1351,7 @@ async function loadSelectedLabAssignments() {
     try {
         const res = await fetch(`/api/laboratories/${labId}/staff`, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to load assignments (${res.status})`);
 
@@ -1362,13 +1383,13 @@ async function loadSelectedLabAssignments() {
 
 async function saveAssignment(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-assign-save');
     const labId = document.getElementById('assign-lab-select').value;
     const staffId = document.getElementById('assign-staff-select').value;
     const roleInLab = document.getElementById('assign-role-select').value;
     const isPrimaryContact = document.getElementById('assign-primary-contact').checked;
     const status = document.getElementById('assign-status-select').value;
     const feedback = document.getElementById('assignment-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     if (!labId) {
         showFeedback(feedback, 'Please select a laboratory first', false);
@@ -1391,6 +1412,7 @@ async function saveAssignment(event) {
         ? `/api/laboratories/${labId}/staff/${staffId}`
         : `/api/laboratories/${labId}/staff`;
 
+    setFormSubmitting(saveBtn, true, 'Saving...');
     try {
         const res = await fetch(url, {
             method,
@@ -1399,7 +1421,7 @@ async function saveAssignment(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Assignment failed (${res.status})`);
 
@@ -1409,6 +1431,8 @@ async function saveAssignment(event) {
         loadStaff(); // update assigned labs count
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -1427,7 +1451,6 @@ function editAssignment(staffId, roleInLab, isPrimaryContact, status) {
 async function removeAssignment(labId, staffId) {
     if (!confirm(`Are you sure you want to remove staff member #${staffId} from this laboratory?`)) return;
     const feedback = document.getElementById('assignment-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/laboratories/${labId}/staff/${staffId}`, {
@@ -1436,7 +1459,7 @@ async function removeAssignment(labId, staffId) {
         });
 
         if (res.status === 204) {
-            jsonViewer.textContent = JSON.stringify({ message: `Assignment removed (204 No Content)` }, null, 2);
+            safeSetJson({ message: `Assignment removed (204 No Content)` });
             showFeedback(feedback, `Assignment removed successfully`, true);
             loadSelectedLabAssignments();
             loadStaff();
@@ -1444,7 +1467,7 @@ async function removeAssignment(labId, staffId) {
         }
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
         throw new Error(data.message || `Removal failed (${res.status})`);
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -1475,7 +1498,7 @@ async function viewStaffLabs(staffId, staffName) {
     try {
         const res = await fetch(`/api/staff/${staffId}/laboratories`, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch staff laboratories (${res.status})`);
 
@@ -1558,7 +1581,7 @@ async function loadEquipment() {
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Failed to fetch equipment (${res.status})`);
 
@@ -1577,12 +1600,12 @@ async function loadEquipment() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><code>${escapeHtml(eq.assetTag)}</code></td>
-                <td><strong>${escapeHtml(eq.name)}</strong> <br><small class="stat-meta">${escapeHtml(eq.modelNumber || eq.model || '—')}</small></td>
-                <td>${escapeHtml(eq.manufacturer || '—')}</td>
+                <td><strong>${escapeHtml(eq.name)}</strong></td>
                 <td>${escapeHtml(eq.serialNumber || '—')}</td>
                 <td><strong>${escapeHtml(eq.laboratoryCode || '')}</strong> <br><small class="stat-meta">${escapeHtml(eq.laboratoryName || '')}</small></td>
-                <td>${eq.calibrationFrequencyDays || 90} days</td>
+                <td>${escapeHtml(eq.manufacturer || '—')} <br><small class="stat-meta">${escapeHtml(eq.modelNumber || eq.model || '—')}</small></td>
                 <td>${formatStatusBadge(eq.status)}</td>
+                <td>Every ${eq.calibrationFrequencyDays || 90} days</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editEquipment(${JSON.stringify(eq)})'>Edit</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteEquipment(${eq.id}, '${escapeHtml(eq.assetTag)}')">Delete</button>
@@ -1597,6 +1620,7 @@ async function loadEquipment() {
 
 async function saveEquipment(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-equipment-save');
     const id = document.getElementById('equipment-id').value;
     const laboratoryIdVal = document.getElementById('equipment-lab-select').value;
     const assetTag = document.getElementById('equipment-asset-tag').value.trim();
@@ -1632,6 +1656,7 @@ async function saveEquipment(event) {
     const url = isEdit ? `/api/equipment/${id}` : '/api/equipment';
     const method = isEdit ? 'PUT' : 'POST';
 
+    setFormSubmitting(saveBtn, true, 'Saving...');
     try {
         const res = await fetch(url, {
             method,
@@ -1650,6 +1675,8 @@ async function saveEquipment(event) {
         loadEquipment();
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -1689,7 +1716,6 @@ function resetEquipmentForm() {
 async function deleteEquipment(id, assetTag) {
     if (!confirm(`Are you sure you want to delete equipment "${assetTag}" (ID #${id})?`)) return;
     const feedback = document.getElementById('equipment-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/equipment/${id}`, {
@@ -1698,14 +1724,14 @@ async function deleteEquipment(id, assetTag) {
         });
 
         if (res.status === 204) {
-            jsonViewer.textContent = JSON.stringify({ message: `Equipment #${id} (${assetTag}) deleted successfully (204 No Content)` }, null, 2);
+            safeSetJson({ message: `Equipment #${id} (${assetTag}) deleted successfully (204 No Content)` });
             showFeedback(feedback, `Equipment "${assetTag}" deleted successfully`, true);
             loadEquipment();
             return;
         }
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
         throw new Error(data.message || `Delete failed (${res.status})`);
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -1817,7 +1843,7 @@ async function loadSchedules() {
         tbody.innerHTML = '';
 
         if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center">No calibration schedules found matching criteria.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No calibration schedules found matching criteria.</td></tr>';
             return;
         }
 
@@ -1826,14 +1852,12 @@ async function loadSchedules() {
             const canCancel = s.status !== 'CANCELLED' && s.status !== 'COMPLETED';
 
             tr.innerHTML = `
-                <td><code>#${s.id}</code></td>
                 <td><strong>${escapeHtml(s.assetTag || '—')}</strong><br><small class="stat-meta">${escapeHtml(s.equipmentName || '—')}</small></td>
                 <td><strong>${escapeHtml(s.laboratoryCode || '—')}</strong><br><small class="stat-meta">${escapeHtml(s.laboratoryName || '')}</small></td>
                 <td>${formatDate(s.scheduledDate)}</td>
                 <td><strong>${formatDate(s.dueDate)}</strong></td>
-                <td>${formatStatusBadge(s.status)}</td>
                 <td>${formatPriorityBadge(s.priority)}</td>
-                <td><small>${escapeHtml(s.remarks || '—')}</small></td>
+                <td>${formatStatusBadge(s.status)}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick='editSchedule(${JSON.stringify(s)})'>Edit</button>
                     ${canCancel ? `<button class="btn btn-secondary btn-sm" onclick="cancelSchedule(${s.id})">Cancel</button>` : ''}
@@ -1849,6 +1873,7 @@ async function loadSchedules() {
 
 async function saveSchedule(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-schedule-save');
     const id = document.getElementById('schedule-id').value;
     const equipmentIdVal = document.getElementById('schedule-equipment-select').value;
     const scheduledDate = document.getElementById('schedule-date').value;
@@ -1857,7 +1882,6 @@ async function saveSchedule(event) {
     const statusVal = document.getElementById('schedule-status-select')?.value;
     const remarks = document.getElementById('schedule-remarks').value.trim();
     const feedback = document.getElementById('schedule-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     if (!equipmentIdVal) {
         showFeedback(feedback, 'Please select an equipment item', false);
@@ -1887,6 +1911,7 @@ async function saveSchedule(event) {
         remarks: remarks || null
     };
 
+    setFormSubmitting(saveBtn, true, 'Saving...');
     try {
         const res = await fetch(url, {
             method,
@@ -1895,7 +1920,7 @@ async function saveSchedule(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Schedule save failed (${res.status})`);
 
@@ -1905,6 +1930,8 @@ async function saveSchedule(event) {
         loadSchedules();
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -1952,7 +1979,6 @@ function resetScheduleForm() {
 async function cancelSchedule(id) {
     if (!confirm(`Are you sure you want to cancel Calibration Schedule #${id}?`)) return;
     const feedback = document.getElementById('schedule-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/calibration-schedules/${id}/cancel`, {
@@ -1961,7 +1987,7 @@ async function cancelSchedule(id) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Cancellation failed (${res.status})`);
 
@@ -1975,7 +2001,6 @@ async function cancelSchedule(id) {
 async function deleteSchedule(id) {
     if (!confirm(`Are you sure you want to delete Calibration Schedule #${id}?`)) return;
     const feedback = document.getElementById('schedule-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/calibration-schedules/${id}`, {
@@ -1984,14 +2009,14 @@ async function deleteSchedule(id) {
         });
 
         if (res.status === 204) {
-            jsonViewer.textContent = JSON.stringify({ message: `Calibration Schedule #${id} deleted successfully (204 No Content)` }, null, 2);
+            safeSetJson({ message: `Calibration Schedule #${id} deleted successfully (204 No Content)` });
             showFeedback(feedback, `Calibration Schedule #${id} deleted successfully`, true);
             loadSchedules();
             return;
         }
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
         throw new Error(data.message || `Delete failed (${res.status})`);
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -2121,23 +2146,22 @@ async function loadRecords() {
         tbody.innerHTML = '';
 
         if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center">No calibration records found matching criteria.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center">No calibration records found matching criteria.</td></tr>';
             return;
         }
 
         data.forEach(r => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><code>#${r.id}</code></td>
                 <td><strong>${escapeHtml(r.assetTag || '—')}</strong><br><small class="stat-meta">${escapeHtml(r.equipmentName || '—')}</small></td>
                 <td><strong>${escapeHtml(r.laboratoryCode || '—')}</strong><br><small class="stat-meta">${escapeHtml(r.laboratoryName || '')}</small></td>
                 <td>${formatDate(r.calibrationDate)}</td>
                 <td><strong>${formatDate(r.nextDueDate)}</strong></td>
-                <td><span class="badge-calib-type">${formatCalibratorType(r.calibratedByType)}</span></td>
-                <td>${escapeHtml(r.calibratorName || '—')}</td>
                 <td>${formatResultBadge(r.result)}</td>
-                <td>${escapeHtml(r.standardsUsed || '—')}<br><small class="stat-meta">${escapeHtml(r.uncertaintyMeasurement || '')}</small></td>
-                <td><small>${escapeHtml(r.notes || '—')}</small></td>
+                <td>${escapeHtml(r.calibratorName || '—')}</td>
+                <td><span class="badge-calib-type">${formatCalibratorType(r.calibratedByType)}</span></td>
+                <td><button class="btn btn-secondary btn-xs" onclick="navigateTo('documents')">View Certs</button></td>
+                <td><button class="btn btn-primary btn-xs" onclick="openDocumentModalForRecord(${r.equipmentId}, ${r.id})">+ Upload Cert</button></td>
             `;
             tbody.appendChild(tr);
         });
@@ -2148,6 +2172,7 @@ async function loadRecords() {
 
 async function saveRecord(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-record-save');
     const equipmentIdVal = document.getElementById('record-equipment-select').value;
     const scheduleIdVal = document.getElementById('record-schedule-select').value;
     const calibrationDate = document.getElementById('record-calibration-date').value;
@@ -2159,7 +2184,6 @@ async function saveRecord(event) {
     const standardsUsed = document.getElementById('record-standards').value.trim();
     const notes = document.getElementById('record-notes').value.trim();
     const feedback = document.getElementById('record-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     if (!equipmentIdVal) {
         showFeedback(feedback, 'Please select an equipment item', false);
@@ -2184,6 +2208,7 @@ async function saveRecord(event) {
         notes: notes || null
     };
 
+    setFormSubmitting(saveBtn, true, 'Saving...');
     try {
         const res = await fetch('/api/calibration-records', {
             method: 'POST',
@@ -2192,7 +2217,7 @@ async function saveRecord(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Record creation failed (${res.status})`);
 
@@ -2204,6 +2229,8 @@ async function saveRecord(event) {
         loadEquipment();
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -2296,7 +2323,7 @@ async function loadDocuments() {
         tbody.innerHTML = '';
 
         if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="12" class="text-center">No calibration documents found matching criteria.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">No calibration documents found matching criteria.</td></tr>';
             return;
         }
 
@@ -2316,17 +2343,13 @@ async function loadDocuments() {
             }
 
             tr.innerHTML = `
-                <td><code>#${d.id}</code></td>
+                <td><strong>${escapeHtml(d.documentName)}</strong><br><small class="stat-meta"><span class="badge-file-type">${escapeHtml(d.fileType)}</span> ${sizeFormatted}</small></td>
+                <td><code>${escapeHtml(d.certificateNumber || '—')}</code></td>
                 <td><strong>${escapeHtml(d.equipmentCode || '—')}</strong><br><small class="stat-meta">${escapeHtml(d.equipmentName || '—')}</small></td>
                 <td>${escapeHtml(d.laboratoryName || '—')}</td>
-                <td>${d.calibrationRecordId ? `<code>Record #${d.calibrationRecordId}</code><br><small class="stat-meta">${formatDate(d.calibrationDate)}</small>` : '<span class="text-muted">None (General)</span>'}</td>
-                <td><strong>${escapeHtml(d.documentName)}</strong></td>
-                <td><code>${escapeHtml(d.certificateNumber || '—')}</code></td>
-                <td><span class="badge-file-type">${escapeHtml(d.fileType)}</span><br><small class="stat-meta">${sizeFormatted}</small></td>
                 <td>${formatDate(d.issueDate)}</td>
                 <td><strong>${formatDate(d.validUntil)}</strong></td>
                 <td>${formatStatusBadge(d.validityStatus)}</td>
-                <td><small>${formatDateTime(d.uploadedAt)}</small></td>
                 <td>
                     <button class="btn btn-sm btn-primary" onclick="downloadDocument(${d.id})">Download</button>
                     ${deleteButton}
@@ -2341,6 +2364,7 @@ async function loadDocuments() {
 
 async function uploadDocument(event) {
     event.preventDefault();
+    const saveBtn = document.getElementById('btn-doc-save');
     const equipId = document.getElementById('doc-equipment-id').value;
     const recordId = document.getElementById('doc-record-id').value;
     const docName = document.getElementById('doc-name').value.trim();
@@ -2349,7 +2373,6 @@ async function uploadDocument(event) {
     const validUntil = document.getElementById('doc-valid-until').value;
     const fileInput = document.getElementById('doc-file');
     const feedback = document.getElementById('doc-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     if (!equipId) {
         showFeedback(feedback, 'Please select an equipment item', false);
@@ -2386,6 +2409,7 @@ async function uploadDocument(event) {
     if (validUntil) formData.append('validUntil', validUntil);
     formData.append('file', file);
 
+    setFormSubmitting(saveBtn, true, 'Uploading...');
     try {
         const headers = {};
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
@@ -2397,7 +2421,7 @@ async function uploadDocument(event) {
         });
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        safeSetJson(data);
 
         if (!res.ok) throw new Error(data.message || `Upload failed (${res.status})`);
 
@@ -2407,6 +2431,8 @@ async function uploadDocument(event) {
         loadDocuments();
     } catch (err) {
         showFeedback(feedback, err.message, false);
+    } finally {
+        setFormSubmitting(saveBtn, false);
     }
 }
 
@@ -2443,7 +2469,6 @@ async function downloadDocument(id) {
 async function deleteDocument(id) {
     if (!confirm(`Are you sure you want to delete document #${id}? This will remove the file from storage.`)) return;
     const feedback = document.getElementById('doc-feedback');
-    const jsonViewer = document.getElementById('json-viewer');
 
     try {
         const res = await fetch(`/api/calibration-documents/${id}`, {
@@ -2452,15 +2477,15 @@ async function deleteDocument(id) {
         });
 
         if (res.status === 204) {
-            jsonViewer.textContent = JSON.stringify({ message: `Document #${id} deleted (204 No Content)` }, null, 2);
+            safeSetJson({ message: `Document #${id} deleted (204 No Content)` });
             showFeedback(feedback, `Document #${id} deleted successfully`, true);
             loadDocuments();
             return;
         }
 
         const data = await res.json();
-        jsonViewer.textContent = JSON.stringify(data, null, 2);
-        throw new Error(data.message || `Deletion failed (${res.status})`);
+        safeSetJson(data);
+        throw new Error(data.message || `Delete failed (${res.status})`);
     } catch (err) {
         showFeedback(feedback, err.message, false);
     }
@@ -2478,9 +2503,223 @@ function formatFileSize(bytes) {
 }
 
 // -------------------------------------------------------------
-// Step 10: In-App Notifications and Calibration Alert Management
+// Step 10: Desktop & System Notifications Management
 // -------------------------------------------------------------
 let notificationsCache = [];
+let desktopNotifPollingTimer = null;
+
+function getDesktopNotifStorageKey() {
+    const userIdentifier = currentUser?.staffId || currentUser?.email || currentUser?.username || 'default_user';
+    return `smartlab_displayed_desktop_alerts_${userIdentifier}`;
+}
+
+function getDisplayedDesktopNotifIds() {
+    try {
+        const stored = localStorage.getItem(getDesktopNotifStorageKey());
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function markDesktopNotifAsDisplayed(id) {
+    if (!id) return;
+    try {
+        const ids = getDisplayedDesktopNotifIds();
+        if (!ids.includes(id)) {
+            ids.push(id);
+            if (ids.length > 500) {
+                ids.splice(0, ids.length - 500);
+            }
+            localStorage.setItem(getDesktopNotifStorageKey(), JSON.stringify(ids));
+        }
+    } catch (e) {
+        console.error('Failed to update displayed notification IDs in localStorage:', e);
+    }
+}
+
+function updateDesktopNotificationUI() {
+    const btn = document.getElementById('desktop-notif-btn');
+    const icon = document.getElementById('desktop-notif-icon');
+    const label = document.getElementById('desktop-notif-label');
+    if (!btn) return;
+
+    if (!('Notification' in window)) {
+        btn.className = 'btn-desktop-notif unsupported';
+        btn.title = 'Web Desktop Notifications are not supported by this browser';
+        if (icon) icon.textContent = '🔕';
+        if (label) label.textContent = 'Unsupported';
+        return;
+    }
+
+    const permission = Notification.permission;
+    if (permission === 'granted') {
+        btn.className = 'btn-desktop-notif active';
+        btn.title = 'Desktop Notifications are active and delivering real-time calibration alerts';
+        if (icon) icon.textContent = '🔔';
+        if (label) label.textContent = 'Alerts Active';
+    } else if (permission === 'denied') {
+        btn.className = 'btn-desktop-notif blocked';
+        btn.title = 'Desktop notifications are blocked in your browser site permissions. Click for guidance.';
+        if (icon) icon.textContent = '🔕';
+        if (label) label.textContent = 'Alerts Blocked';
+    } else {
+        btn.className = 'btn-desktop-notif';
+        btn.title = 'Click to enable native desktop notifications for calibration schedules';
+        if (icon) icon.textContent = '🔔';
+        if (label) label.textContent = 'Enable Alerts';
+    }
+}
+
+async function handleDesktopNotificationBtnClick() {
+    if (!('Notification' in window)) {
+        showToast('Web Notifications API is not supported by your browser.', 'warning', 'Unsupported');
+        return;
+    }
+
+    if (Notification.permission === 'granted') {
+        showToast('Desktop notifications are already enabled and active.', 'info', 'Desktop Alerts Active');
+        sendTestDesktopNotification();
+        return;
+    }
+
+    if (Notification.permission === 'denied') {
+        showToast('Desktop notifications are blocked in browser site permissions. Please allow notifications in your browser address bar/settings.', 'warning', 'Permission Blocked');
+        return;
+    }
+
+    try {
+        const permission = await Notification.requestPermission();
+        updateDesktopNotificationUI();
+        if (permission === 'granted') {
+            showToast('Desktop notifications enabled! You will receive timely alerts for calibration schedules.', 'success', 'Alerts Enabled');
+            syncAndDispatchDesktopAlerts();
+        } else if (permission === 'denied') {
+            showToast('Desktop notifications were denied. Alerts will still appear in this dashboard.', 'warning', 'Permission Denied');
+        }
+    } catch (err) {
+        console.error('Error requesting notification permission:', err);
+    }
+}
+
+function dispatchNativeNotification(notif) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+        return;
+    }
+
+    const title = notif.title ? `SmartLab Alert: ${notif.title}` : 'SmartLab Calibration Alert';
+    const bodyLines = [];
+    if (notif.message) bodyLines.push(notif.message);
+    if (notif.laboratoryName) bodyLines.push(`Lab: ${notif.laboratoryName}`);
+    if (notif.equipmentName) bodyLines.push(`Equipment: ${notif.equipmentName} (${notif.equipmentCode || 'N/A'})`);
+    if (notif.scheduledDueDate) bodyLines.push(`Due Date: ${formatDate(notif.scheduledDueDate)}`);
+
+    try {
+        const options = {
+            body: bodyLines.join('\n'),
+            icon: '/favicon.ico',
+            tag: `smartlab-calibration-${notif.id || Date.now()}`,
+            data: {
+                id: notif.id,
+                scheduleId: notif.calibrationScheduleId,
+                equipmentId: notif.equipmentId,
+                route: notif.calibrationScheduleId ? 'schedules' : 'notifications'
+            }
+        };
+
+        const notification = new Notification(title, options);
+        notification.onclick = function(event) {
+            event.preventDefault();
+            window.focus();
+            if (notif.calibrationScheduleId) {
+                navigateTo('schedules');
+            } else {
+                navigateTo('notifications');
+            }
+            this.close();
+        };
+
+        if (notif.id) {
+            markDesktopNotifAsDisplayed(notif.id);
+        }
+    } catch (e) {
+        console.error('Failed to trigger native desktop notification:', e);
+    }
+}
+
+function sendTestDesktopNotification() {
+    if (!('Notification' in window)) {
+        showToast('Web Notifications API is not supported in this browser.', 'warning', 'Unsupported');
+        return;
+    }
+
+    if (Notification.permission === 'default') {
+        handleDesktopNotificationBtnClick();
+        return;
+    }
+
+    if (Notification.permission === 'denied') {
+        showToast('Notifications are blocked in your browser settings. Please permit notifications for this site.', 'warning', 'Notifications Blocked');
+        return;
+    }
+
+    try {
+        const testNotification = new Notification('SmartLab Calibration Alert (Test)', {
+            body: 'Desktop notifications are active! You will receive timely alerts for upcoming and overdue laboratory calibrations.',
+            icon: '/favicon.ico',
+            tag: 'smartlab-test-alert'
+        });
+        testNotification.onclick = function(e) {
+            e.preventDefault();
+            window.focus();
+            navigateTo('notifications');
+            this.close();
+        };
+        showToast('Test desktop notification sent!', 'success', 'Desktop Alert');
+    } catch (err) {
+        console.error('Error triggering test notification:', err);
+        showToast('Could not send notification: ' + err.message, 'danger', 'Error');
+    }
+}
+
+async function syncAndDispatchDesktopAlerts() {
+    if (!authToken) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    try {
+        const res = await fetch('/api/notifications?isRead=false', { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const unreadList = await res.json();
+        if (!Array.isArray(unreadList) || unreadList.length === 0) return;
+
+        const displayedIds = new Set(getDisplayedDesktopNotifIds());
+        const pendingAlerts = unreadList.filter(n => !displayedIds.has(n.id));
+
+        pendingAlerts.forEach(alert => {
+            dispatchNativeNotification(alert);
+        });
+    } catch (err) {
+        console.error('Failed to sync desktop notifications:', err);
+    }
+}
+
+function startDesktopNotifPolling() {
+    stopDesktopNotifPolling();
+    syncAndDispatchDesktopAlerts();
+    desktopNotifPollingTimer = setInterval(() => {
+        if (authToken) {
+            updateUnreadCount();
+            syncAndDispatchDesktopAlerts();
+        }
+    }, 30000);
+}
+
+function stopDesktopNotifPolling() {
+    if (desktopNotifPollingTimer) {
+        clearInterval(desktopNotifPollingTimer);
+        desktopNotifPollingTimer = null;
+    }
+}
 
 function scrollToNotifications() {
     const section = document.getElementById('notifications-section');
@@ -2523,7 +2762,9 @@ async function loadNotifications() {
     let url = '/api/notifications?';
     if (type) url += `type=${encodeURIComponent(type)}&`;
     if (priority) url += `priority=${encodeURIComponent(priority)}&`;
-    if (isRead !== '') url += `isRead=${encodeURIComponent(isRead)}&`;
+    if (isRead === 'true' || isRead === 'false') {
+        url += `isRead=${encodeURIComponent(isRead)}&`;
+    }
 
     try {
         const res = await fetch(url, { headers: getAuthHeaders() });
@@ -2535,6 +2776,13 @@ async function loadNotifications() {
         notificationsCache = data;
         updateUnreadCount();
         container.innerHTML = '';
+
+        if (('Notification' in window) && Notification.permission === 'granted') {
+            const displayedIds = new Set(getDisplayedDesktopNotifIds());
+            data.filter(n => !n.read && !displayedIds.has(n.id)).forEach(n => {
+                dispatchNativeNotification(n);
+            });
+        }
 
         if (data.length === 0) {
             container.innerHTML = '<div class="text-center" style="padding: 2rem; color: var(--text-muted);"><p>No notifications found matching criteria.</p></div>';
@@ -2640,6 +2888,7 @@ async function triggerCalibrationAlerts() {
         showFeedback(feedback, msg, true);
         loadNotifications();
         updateUnreadCount();
+        syncAndDispatchDesktopAlerts();
         loadDashboard();
     } catch (err) {
         showFeedback(feedback, err.message, false);
@@ -2892,7 +3141,7 @@ function renderRecentCalibrationsTable(records) {
     if (!tbody) return;
 
     if (!records || records.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">No calibration activity available.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">No calibration activity available.</td></tr>';
         return;
     }
 
@@ -2908,14 +3157,11 @@ function renderRecentCalibrationsTable(records) {
         if (r.result === 'FAILED') resultBadgeClass = 'badge-priority-critical';
 
         tr.innerHTML = `
-            <td>#${r.recordId}</td>
             <td><strong>${escapeHtml(r.equipmentName || 'N/A')}</strong></td>
             <td><code>${escapeHtml(r.assetTag || 'N/A')}</code></td>
             <td>${escapeHtml(r.laboratoryName || 'N/A')}</td>
             <td>${escapeHtml(r.calibrationDate || '')}</td>
-            <td>${escapeHtml(r.nextDueDate || '')}</td>
             <td><span class="${resultBadgeClass}">${escapeHtml(r.result || '')}</span></td>
-            <td>${escapeHtml(r.calibratorName || '')}</td>
             <td>${certBadge}</td>
         `;
         tbody.appendChild(tr);
@@ -3041,9 +3287,9 @@ async function loadAuditLogs() {
                         <td style="white-space:nowrap; font-size:0.82rem; color:var(--text-secondary);">${formattedTime}</td>
                         <td style="font-size:0.85rem;">${actorDisplay}</td>
                         <td><span class="badge-audit-action ${badgeClass}">${escapeHtml(log.action)}</span></td>
-                        <td>${entityDisplay}</td>
+                        <td>${log.entityType ? `<span class="badge-audit-entity">${escapeHtml(log.entityType)}</span>` : '—'}</td>
+                        <td>${log.entityId ? '<code>#' + log.entityId + '</code>' : '—'}</td>
                         <td style="font-size:0.85rem;">${escapeHtml(log.description || '—')}</td>
-                        <td style="font-size:0.82rem; font-family:var(--font-mono, monospace);">${escapeHtml(log.ipAddress || '—')}</td>
                         <td>${diffBtn}</td>
                     </tr>
                 `;
@@ -3982,7 +4228,7 @@ window.addEventListener('click', (e) => {
     }
     // Close user dropdown when clicking outside
     const dropdown = document.getElementById('user-dropdown-menu');
-    const toggleBtn = document.getElementById('user-profile-toggle');
+    const toggleBtn = document.getElementById('user-menu-btn') || document.getElementById('user-profile-toggle');
     if (dropdown && dropdown.style.display === 'block' && toggleBtn && !toggleBtn.contains(e.target) && !dropdown.contains(e.target)) {
         dropdown.style.display = 'none';
     }

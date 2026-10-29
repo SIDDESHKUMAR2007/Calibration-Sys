@@ -14,7 +14,7 @@
     <!-- ===================================================================
          1. DEDICATED LOGIN PAGE (Shown when unauthenticated)
          =================================================================== -->
-    <div id="login-view" class="login-wrapper" style="display: none;">
+    <div id="login-view" class="login-wrapper">
         <div class="login-card">
             <div class="login-header">
                 <div class="login-logo">
@@ -122,6 +122,12 @@
 
             <!-- Header Right Menu -->
             <div class="header-right">
+                <!-- Desktop Notification Toggle / Status -->
+                <button id="desktop-notif-btn" class="btn-desktop-notif" onclick="handleDesktopNotificationBtnClick()" title="Desktop Notifications">
+                    <span id="desktop-notif-icon">&#128276;</span>
+                    <span id="desktop-notif-label">Desktop Alerts</span>
+                </button>
+
                 <!-- Notifications Bell -->
                 <button id="notif-bell-btn" class="header-icon-btn" onclick="navigateTo('notifications')" title="Notifications">
                     <span class="bell-icon">&#128276;</span>
@@ -209,7 +215,7 @@
                     <div class="nav-section-title">MONITORING</div>
                     <a href="#/notifications" class="nav-item" data-route="notifications" onclick="navigateTo('notifications')">
                         <span class="nav-icon">&#128276;</span>
-                        <span class="nav-label">In-App Notifications</span>
+                        <span class="nav-label">Notifications &amp; Alerts</span>
                     </a>
                     <a href="#/reports" class="nav-item" data-route="reports" onclick="navigateTo('reports')">
                         <span class="nav-icon">&#128200;</span>
@@ -224,10 +230,6 @@
                     <a href="#/colleges" class="nav-item admin-only" data-route="colleges" onclick="navigateTo('colleges')">
                         <span class="nav-icon">&#127979;</span>
                         <span class="nav-label">Colleges</span>
-                    </a>
-                    <a href="#/diagnostics" class="nav-item admin-only" data-route="diagnostics" onclick="navigateTo('diagnostics')">
-                        <span class="nav-icon">&#129514;</span>
-                        <span class="nav-label">System Health</span>
                     </a>
                 </nav>
 
@@ -434,17 +436,16 @@
                                     <thead>
                                         <tr>
                                             <th>Laboratory</th>
-                                            <th>College</th>
+                                            <th>Lab Code</th>
                                             <th>Total Equipment</th>
-                                            <th>Operational %</th>
+                                            <th>Operational</th>
                                             <th>Upcoming</th>
                                             <th>Due</th>
                                             <th>Overdue</th>
-                                            <th>Status</th>
                                         </tr>
                                     </thead>
                                     <tbody id="dash-lab-table-body">
-                                        <tr><td colspan="8" class="text-center text-muted p-4">Loading laboratory metrics...</td></tr>
+                                        <tr><td colspan="7" class="text-center text-muted p-4">Loading laboratory metrics...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -468,13 +469,15 @@
                                         <thead>
                                             <tr>
                                                 <th>Equipment</th>
+                                                <th>Asset Tag</th>
                                                 <th>Laboratory</th>
                                                 <th>Date</th>
                                                 <th>Result</th>
+                                                <th>Certificate</th>
                                             </tr>
                                         </thead>
                                         <tbody id="dash-recent-table-body">
-                                            <tr><td colspan="4" class="text-center text-muted p-4">No recent calibrations</td></tr>
+                                            <tr><td colspan="6" class="text-center text-muted p-4">No recent calibrations</td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -775,7 +778,7 @@
                                             <th>Laboratory</th>
                                             <th>Manufacturer / Model</th>
                                             <th>Status</th>
-                                            <th>Next Calibration</th>
+                                            <th>Calibration Cycle</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -1044,7 +1047,7 @@
                                             <th>Laboratory</th>
                                             <th>Issue Date</th>
                                             <th>Valid Until</th>
-                                            <th>File Size</th>
+                                            <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -1062,15 +1065,18 @@
 
 
                 <!-- =======================================================
-                     VIEW 8: IN-APP NOTIFICATIONS
+                     VIEW 8: CALIBRATION & DESKTOP NOTIFICATIONS
                      ======================================================= -->
                 <section id="view-notifications" class="route-view">
                     <div class="view-header">
                         <div>
-                            <h2 class="view-title">In-App Notifications</h2>
-                            <p class="view-subtitle">Calibration alerts and compliance updates routed to your assigned laboratories</p>
+                            <h2 class="view-title">Desktop &amp; System Notifications</h2>
+                            <p class="view-subtitle">Native browser desktop alerts and compliance history routed to your assigned laboratories</p>
                         </div>
                         <div class="view-actions">
+                            <button id="btn-test-desktop-notif" class="btn btn-secondary btn-sm" onclick="sendTestDesktopNotification()" title="Verify native browser desktop alert">
+                                <span>&#128276;</span> Test Desktop Alert
+                            </button>
                             <button class="btn btn-secondary btn-sm admin-only" onclick="triggerCalibrationAlerts()" title="Trigger alert generation">
                                 <span>&#9889;</span> Generate Alerts
                             </button>
@@ -1084,16 +1090,16 @@
                     <div class="notif-workflow-banner">
                         <div class="banner-icon">&#128276;</div>
                         <div class="banner-body">
-                            <h4>Laboratory Calibration Notification Dispatch Workflow</h4>
-                            <p>Automated calibration alerts evaluated from equipment schedules are scoped and delivered directly to assigned laboratory personnel.</p>
+                            <h4>Laboratory Calibration Desktop Notification Dispatch Workflow</h4>
+                            <p>Automated calibration alerts evaluated from equipment schedules are scoped to assigned laboratory personnel and delivered directly via native desktop notifications, with full compliance history logged below.</p>
                             <div class="workflow-steps">
-                                <span class="step-pill"><strong>1</strong> System / Admin triggers alert evaluation</span>
+                                <span class="step-pill"><strong>1</strong> System / Admin evaluates calibration schedules</span>
                                 <span class="step-arrow">&rarr;</span>
-                                <span class="step-pill"><strong>2</strong> In-App notification dispatched to assigned staff</span>
+                                <span class="step-pill"><strong>2</strong> Desktop alert dispatched to assigned staff</span>
                                 <span class="step-arrow">&rarr;</span>
-                                <span class="step-pill"><strong>3</strong> Real-time header bell badge updates</span>
+                                <span class="step-pill"><strong>3</strong> Real-time header badge &amp; sound/toast sync</span>
                                 <span class="step-arrow">&rarr;</span>
-                                <span class="step-pill"><strong>4</strong> Staff reviews &amp; marks as read</span>
+                                <span class="step-pill"><strong>4</strong> Staff reviews, opens schedule &amp; marks read</span>
                             </div>
                         </div>
                     </div>
@@ -1105,8 +1111,8 @@
                                 <label for="filter-notif-status">Read Status</label>
                                 <select id="filter-notif-status" class="form-select form-select-sm" onchange="loadNotifications()">
                                     <option value="">All Notifications</option>
-                                    <option value="UNREAD" selected>Unread Only</option>
-                                    <option value="READ">Read</option>
+                                    <option value="false" selected>Unread Only</option>
+                                    <option value="true">Read</option>
                                 </select>
                             </div>
                             <div class="filter-item">

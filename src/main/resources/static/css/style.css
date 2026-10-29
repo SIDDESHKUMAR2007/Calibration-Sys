@@ -402,6 +402,40 @@ button, input, select, textarea {
     color: var(--text-primary);
 }
 
+.btn-desktop-notif {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+}
+.btn-desktop-notif:hover {
+    background: var(--bg-muted);
+    color: var(--text-primary);
+    border-color: var(--primary);
+}
+.btn-desktop-notif.active {
+    background: #ecfdf5;
+    border-color: #10b981;
+    color: #065f46;
+}
+.btn-desktop-notif.blocked {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+.btn-desktop-notif.unsupported {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .badge-count {
     position: absolute;
     top: -4px;
@@ -718,19 +752,18 @@ button, input, select, textarea {
 .kpi-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 1.25rem;
+    border-radius: var(--radius-md);
+    padding: 1.15rem 1.25rem;
     display: flex;
     align-items: center;
     gap: 1rem;
     box-shadow: var(--shadow-xs);
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--border-subtle);
+    border-color: var(--primary);
+    background-color: #fafcff;
 }
 
 .kpi-icon-box {
